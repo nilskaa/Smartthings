@@ -35,34 +35,29 @@ metadata {
 
  	// simulator metadata
  	simulator {
-     }
+        }
 
  	// UI tile definitions
  	tiles {
- 		standardTile("switch1", "device.switch", width: 3, height: 1, canChangeIcon: true) {
+ 	 standardTile("switch1", "device.switch", width: 3, height: 1, canChangeIcon: true) {
  			state "off", label: '${name}', action: "Switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
  			state "on", label: '${name}', action: "Switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821"
- 		}
-
- 		standardTile("switch2", "device.switch2", width: 3, height: 1, canChangeIcon: true) {
+ 	 }
+ 	 standardTile("switch2", "device.switch2", width: 3, height: 1, canChangeIcon: true) {
  			state "off", label: '${name}', action: "on2", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
  			state "on", label: '${name}', action: "off2", icon: "st.switches.switch.on", backgroundColor: "#79b821"
- 		}
-
+ 	 }
          standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat") {
  			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
- 		}
-        
-        valueTile("roomtemp", "device.roomtemp", inactiveLabel: false, decoration: "flat") {
+ 	 }
+         valueTile("roomtemp", "device.roomtemp", inactiveLabel: false, decoration: "flat") {
 			state "heat", label:'${currentValue}° room', unit:"C", backgroundColor:"#ffffff"
-		}
-        
-        valueTile("internaltemp", "device.internaltemp", inactiveLabel: false, decoration: "flat") {
+	 }
+         valueTile("internaltemp", "device.internaltemp", inactiveLabel: false, decoration: "flat") {
 			state "heat", label:'${currentValue}° internal', unit:"C", backgroundColor:"#ffffff"
-		}
-
- 		main (["switch1", "switch2"])
- 		details (["switch1", "switch2", "refresh", "roomtemp", "internaltemp"])
+	 }
+	 main (["switch1", "switch2"])
+ 	 details (["switch1", "switch2", "refresh", "roomtemp", "internaltemp"])
  	}
 }
 
@@ -74,43 +69,46 @@ def parse(String description) {
     //log.debug "power testing: $test.name"
     
     log.debug "Parse description $description"
-	List result = []
-	def descMap = zigbee.parseDescriptionAsMap(description)
-	log.debug "Desc Map: $descMap"
-	List attrData = [[cluster: descMap.clusterId, sourceEndpoint: descMap.sourceEndpoint, attrId: descMap.attrId, value: descMap.value]]
-	log.debug attrData
-    descMap.additionalAttrs.each {
-	    attrData << [cluster: descMap.clusterId, sourceEndpoint: it.sourceEndpoint, attrId: it.attrId, value: it.value]
+     List result = []
+     def descMap = zigbee.parseDescriptionAsMap(description)
+     log.debug "Desc Map: $descMap"
+     List attrData = [[cluster: descMap.clusterId, sourceEndpoint: descMap.sourceEndpoint, attrId: descMap.attrId, value: descMap.value]]
+     log.debug attrData
+     descMap.additionalAttrs.each {
+      attrData << [cluster: descMap.clusterId, sourceEndpoint: it.sourceEndpoint, attrId: it.attrId, value: it.value]
+     }
+     attrData.each {
+	def map = [:]
+	if (it.cluster == "0402" && it.sourceEndpoint == "01" && it.attrId == "0000") {
+		log.debug "Room temperature"
+		map.name = "roomtemp"
+		map.value = getTemperature(it.value) -1
+		map.unit = temperatureScale
+	} 
+	else if (it.cluster == "0402" && it.sourceEndpoint == "02" && it.attrId == "0000") {
+		log.debug "Internal temperature"
+		map.name = "internaltemp"
+		map.value = getTemperature(it.value) -1
+		map.unit = temperatureScale
+	} 
+	else if (it.cluster == "0006" && it.sourceEndpoint == "01" && it.attrId == "0000") {
+		log.debug "Rele 1 status"
+		map.name = "switch"
+            	if (it.value == "00") map.value = "off"
+            	else if (it.value == "01") map.value = "on"
+	} 
+	else if (it.cluster == "0006" && it.sourceEndpoint == "02" && it.attrId == "0000") {
+		log.debug "Rele 2 status"
+		map.name = "switch2"
+            	if (it.value == "00") map.value = "off"
+            	else if (it.value == "01") map.value = "on"
 	}
-    attrData.each {
-		def map = [:]
-		if (it.cluster == "0402" && it.sourceEndpoint == "01" && it.attrId == "0000") {
-			log.debug "Room temperature"
-			map.name = "roomtemp"
-			map.value = getTemperature(it.value) -1
-			map.unit = temperatureScale
-		} else if (it.cluster == "0402" && it.sourceEndpoint == "02" && it.attrId == "0000") {
-			log.debug "Internal temperature"
-			map.name = "internaltemp"
-			map.value = getTemperature(it.value) -1
-			map.unit = temperatureScale
-		} else if (it.cluster == "0006" && it.sourceEndpoint == "01" && it.attrId == "0000") {
-			log.debug "Rele 1 status"
-			map.name = "switch"
-            if (it.value == "00") map.value = "off"
-            else if (it.value == "01") map.value = "on"
-		} else if (it.cluster == "0006" && it.sourceEndpoint == "02" && it.attrId == "0000") {
-			log.debug "Rele 2 status"
-			map.name = "switch2"
-            if (it.value == "00") map.value = "off"
-            else if (it.value == "01") map.value = "on"
-		}
-		if (map) {
-			result << createEvent(map)
-		}
-		log.debug "Parse returned $map"
+	if (map) {
+		result << createEvent(map)
 	}
-	return result
+	log.debug "Parse returned $map"
+     }
+     return result
 }
 
 // Commands to device
@@ -157,7 +155,7 @@ def refresh() {
 }
 
 def configure() {
- 	log.debug "Binding SEP 0x01 and 0x02 DEP 0x01 Cluster 0x0006 On / Off cluster to hub" 
+     log.debug "Binding SEP 0x01 and 0x02 DEP 0x01 Cluster 0x0006 On / Off cluster to hub" 
      def cmd = []
      cmd << "zdo bind 0x${device.deviceNetworkId} 0x01 0x01 0x0006 {${device.zigbeeId}} {}" // Bind on/off output to st-hub for end point 1
      cmd << "delay 150"
