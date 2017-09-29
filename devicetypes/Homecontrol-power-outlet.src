@@ -1,0 +1,177 @@
+/**
+  *  Custom Device type for Homecontrol HCO-Smart kontakt
+  *
+  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+  *  in compliance with the License. You may obtain a copy of the License at:
+  *
+  *      http://www.apache.org/licenses/LICENSE-2.0
+  *
+  *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+  *  for the specific language governing permissions and limitations under the License.
+  *
+  *
+  * TODO: check for power consumption data (wh) - can't find this attribute...
+  * TODO: Add user defined callibration value for temp - currently added -1 in the code
+  * TODO: Possibility to report high level state (On, OnA, OnB, Off) 
+  */
+metadata {
+ 	definition (name: "Homecontrol power outlet", namespace: "nilskaa@gmail.com", author: "nilskaa@gmail.com") {
+         capability "Power Meter"
+         capability "Refresh"
+         capability "Polling"
+         capability "Sensor"
+         capability "Configuration"
+         capability "Switch"
+         capability "Temperature Measurement"
+
+         command "on2"
+         command "off2"
+
+         attribute "switch2","ENUM", ["on","off"]
+         //Raw code: 01 0104 0002 00 04 0000 0003 0006 0402 01 0003
+         fingerprint profileId: "0104", deviceId: "0002", inClusters: "0000 0003 0006 0402", endpointId: "01", outClusters: "0003"
+ 	}
+
+ 	// simulator metadata
+ 	simulator {
+     }
+
+ 	// UI tile definitions
+ 	tiles {
+ 		standardTile("switch1", "device.switch", width: 3, height: 1, canChangeIcon: true) {
+ 			state "off", label: '${name}', action: "Switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
+ 			state "on", label: '${name}', action: "Switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821"
+ 		}
+
+ 		standardTile("switch2", "device.switch2", width: 3, height: 1, canChangeIcon: true) {
+ 			state "off", label: '${name}', action: "on2", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
+ 			state "on", label: '${name}', action: "off2", icon: "st.switches.switch.on", backgroundColor: "#79b821"
+ 		}
+
+         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat") {
+ 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
+ 		}
+        
+        valueTile("roomtemp", "device.roomtemp", inactiveLabel: false, decoration: "flat") {
+			state "heat", label:'${currentValue}° room', unit:"C", backgroundColor:"#ffffff"
+		}
+        
+        valueTile("internaltemp", "device.internaltemp", inactiveLabel: false, decoration: "flat") {
+			state "heat", label:'${currentValue}° internal', unit:"C", backgroundColor:"#ffffff"
+		}
+
+ 		main (["switch1", "switch2"])
+ 		details (["switch1", "switch2", "refresh", "roomtemp", "internaltemp"])
+ 	}
+}
+
+// Parse incoming device messages to generate events
+def parse(String description) {
+
+    //testing for power reading:
+    //def test = zigbee.getEvent(description)
+    //log.debug "power testing: $test.name"
+    
+    log.debug "Parse description $description"
+	List result = []
+	def descMap = zigbee.parseDescriptionAsMap(description)
+	log.debug "Desc Map: $descMap"
+	List attrData = [[cluster: descMap.clusterId, sourceEndpoint: descMap.sourceEndpoint, attrId: descMap.attrId, value: descMap.value]]
+	log.debug attrData
+    descMap.additionalAttrs.each {
+	    attrData << [cluster: descMap.clusterId, sourceEndpoint: it.sourceEndpoint, attrId: it.attrId, value: it.value]
+	}
+    attrData.each {
+		def map = [:]
+		if (it.cluster == "0402" && it.sourceEndpoint == "01" && it.attrId == "0000") {
+			log.debug "Room temperature"
+			map.name = "roomtemp"
+			map.value = getTemperature(it.value) -1
+			map.unit = temperatureScale
+		} else if (it.cluster == "0402" && it.sourceEndpoint == "02" && it.attrId == "0000") {
+			log.debug "Internal temperature"
+			map.name = "internaltemp"
+			map.value = getTemperature(it.value) -1
+			map.unit = temperatureScale
+		} else if (it.cluster == "0006" && it.sourceEndpoint == "01" && it.attrId == "0000") {
+			log.debug "Rele 1 status"
+			map.name = "switch"
+            if (it.value == "00") map.value = "off"
+            else if (it.value == "01") map.value = "on"
+		} else if (it.cluster == "0006" && it.sourceEndpoint == "02" && it.attrId == "0000") {
+			log.debug "Rele 2 status"
+			map.name = "switch2"
+            if (it.value == "00") map.value = "off"
+            else if (it.value == "01") map.value = "on"
+		}
+		if (map) {
+			result << createEvent(map)
+		}
+		log.debug "Parse returned $map"
+	}
+	return result
+}
+
+// Commands to device
+
+def on() {
+ 	log.debug "Relay 1 on()"
+ 	sendEvent(name: "switch", value: "on")
+ 	"st cmd 0x${device.deviceNetworkId} 0x01 0x0006 0x1 {}"
+}
+
+def off() {
+ 	log.debug "Relay 1 off()"
+ 	sendEvent(name: "switch", value: "off")
+ 	"st cmd 0x${device.deviceNetworkId} 0x01 0x0006 0x0 {}"
+}
+
+def on2() {
+ 	log.debug "Relay 2 on()"
+ 	sendEvent(name: "switch2", value: "on")
+ 	"st cmd 0x${device.deviceNetworkId} 0x02 0x0006 0x1 {}"
+}
+
+def off2() {
+ 	log.debug "Relay 2 off()"
+ 	sendEvent(name: "switch2", value: "off")
+	"st cmd 0x${device.deviceNetworkId} 0x02 0x0006 0x0 {}"
+}
+
+def poll(){
+ 	log.debug "Poll is calling refresh"
+ 	refresh()
+}
+
+def refresh() {
+     log.debug "sending refresh command"
+     def cmd = []
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0006 0x0000"	// Read on / off value at End point 0x01 
+     cmd << "delay 150"
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x02 0x0006 0x0000"	// Read on / off value at End point 0x02 
+     cmd << "delay 150"
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0402 0x0000"  // temp sensor på endpoint 1
+     cmd << "delay 150"
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x02 0x0402 0x0000"  // temp sensor på endpoint 2 
+}
+
+def configure() {
+ 	log.debug "Binding SEP 0x01 and 0x02 DEP 0x01 Cluster 0x0006 On / Off cluster to hub" 
+     def cmd = []
+     cmd << "zdo bind 0x${device.deviceNetworkId} 0x01 0x01 0x0006 {${device.zigbeeId}} {}" // Bind on/off output to st-hub for end point 1
+     cmd << "delay 150"
+     cmd << "zdo bind 0x${device.deviceNetworkId} 0x02 0x01 0x0006 {${device.zigbeeId}} {}" 	// Bind on/off output to st-hub for end point 2
+     cmd
+}
+
+def getTemperature(value) {
+	if (value != null) {
+		def celsius = Integer.parseInt(value, 16) / 100
+		if (getTemperatureScale() == "C") {
+			return celsius
+		} else {
+			return Math.round(celsiusToFahrenheit(celsius))
+		}
+	}
+}
