@@ -1,0 +1,34 @@
+*	Elko ESH Plus Super TR RF
+ *
+ *-------
+ * Info 
+ *-------
+ * Minimum setpoint: Cluster 0x201 - Attribute 0003 = 5 degrees C
+ * Maximum setpoint: Cluster 0x201 - Attribute 0004 = 50 degrees C
+ * Cluster 0x201 - Attribute 0011 = encoding:29, value:0a28 - is this a default value of 26 degrees C?
+ *
+ *-----------------------------
+ * vendor specific attributes
+ *-----------------------------
+ * 0x401 (encoding:21, value:03e8 for both = 1000 decimal)
+ * 0x402 (encoding:42, value:426164 for bathroom (octet) and not found for hall)
+ * 0x403 (encoding:30, value:01 for bathroom and encoding:30, value:00 for hall) verified 00=luftføler and 01=gulvføler
+ * 0x404 (encoding:20 value:0f for both termostats)
+ * 0x405 (encoding:10 value:0 for both termostats)
+ * 0x406 (encoding:10 value:01 for both termostats)
+ * 0x407 (encoding:41 value:00 for both termostats) unhandled length warning)
+ * 0x408 (floating encoding:21 value:001a,01a9,01dd for bathroom and encoding:21 value:0000,0087 for hall)
+ * 0x409 (floating encoding:29 value in decimal:30,4 to 30,1 for bathroom <- might be external temp but hall returns a fixed 555,46)
+ * 0x410 (unsupported attr)
+ * 0x411 (encoding:10, value:00 for both)
+ * 0x412 (encoding:10, value:00 for both)
+ * 0x413 (encoding:10, value:00 for both)
+ * 0x414 (encoding:20, value:1c for both)
+ * 0x415 (encoding:10, value:00 for both)
+ * 0x416 (encoding:41, value:520a000106010107 for both) unhandled length warning
+ * 0x417 (encoding:28, value:00 for both)
+ * 0x418 (encoding:20, value:0a for both)
+ * 0x419 (encoding:20, value:00 for both)
+ * 0x420 (unsupported attr)
+ * 0x421 (unsupported attr)
+ * 0x422 (unsupported attr)
