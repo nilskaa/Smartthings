@@ -22,7 +22,6 @@ metadata {
 		capability "Refresh"
         capability "Configuration"
         capability "powerMeter" 
-       
 
         //raw: 01 0104 0301 00 03 0000 0003 0201 00
 		fingerprint profileId: "0104", deviceId: "0301", inClusters: "0000, 0003, 0201", endpointId: "01"
@@ -34,9 +33,17 @@ metadata {
 	tiles(scale: 2) {
     	multiAttributeTile(name:"ETS", type:"generic", width: 3, height: 2, canChangeIcon: true){
             tileAttribute("device.temperature", key: "PRIMARY_CONTROL") {
-				attributeState "temperature", label:'${currentValue}°', unit:"C", backgroundColor:"#79b821"
+				attributeState "temperature", label:'${currentValue}°', unit:"C",  backgroundColors:[
+            		[value: 31, color: "#153591"],
+            		[value: 44, color: "#1e9cbb"], //for some reason all these values 
+            		[value: 59, color: "#90d2a7"], //are related to Fahrenheit values?
+            		[value: 74, color: "#44b621"], //Maybe only an issue for Android?
+            		[value: 84, color: "#f1d801"],
+            		[value: 95, color: "#d04e00"],
+            		[value: 96, color: "#bc2323"]
+        		]
 			}
-            tileAttribute("device.heatingSetpoint", key: "SLIDER_CONTROL", range: "(5..50)"){
+            tileAttribute("device.heatingSetpoint", key: "SLIDER_CONTROL", inactiveLabel: false, range:"(5..50)"){
 				attributeState "heatingSetpoint", action:"thermostat.setHeatingSetpoint", backgroundColor:"#e86d13"
             }
             tileAttribute("device.temperatureMeasurement", key: "SECONDARY_CONTROL"){
@@ -72,29 +79,33 @@ def parse(String description) {
 		def map = [:]
         if (it.cluster == "0201" && it.attrId == "0403") {
             log.debug "CONFIG - Temperature sensor value=$it.value"
-			//map.name = "temperature"
 			state.tempsensor = it.value
-			//map.unit = temperatureScale
+        } else if (it.cluster == "0201" && it.attrId == "0003") {
+        	log.debug "CONFIG - Minimum Setpoint value=${it.value} Hex"
+			state.minsetpoint = Integer.parseInt(it.value,16) 
+        } else if (it.cluster == "0201" && it.attrId == "0004") {
+        	log.debug "CONFIG - Maximum Setpoint value=${it.value} Hex"
+			state.maxsetpoint = Integer.parseInt(it.value,16)
         } else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "00") {
 			log.debug "MEASURED AIR TEMPERATURE - air sensor mode"
 			map.name = "temperature"
-			map.value = getTemperature(it.value)
-			map.unit = temperatureScale
+            map.value = getTemperature(it.value)
+			map.unit = location.temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "01") {
 			log.debug "MEASURED AIR TEMPERATURE - floor sensor mode"
 			map.name = "temperatureMeasurement"
 			map.value = getTemperature(it.value)
-			map.unit = temperatureScale
+			map.unit = location.temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0012") {
 			log.debug "HEATING SETPOINT"
 			map.name = "heatingSetpoint"
 			map.value = getTemperature(it.value)
-			map.unit = temperatureScale
+			map.unit = location.temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0409" && state.tempsensor == "01") {
 			log.debug "MEASURED FLOOR TEMPERATURE - floor sensor mode"
 			map.name = "temperature"
 			map.value = getTemperature(it.value)
-			map.unit = temperatureScale
+			map.unit = location.temperatureScale
         } else if (it.cluster == "0201" && it.attrId == "0408") {
 			log.debug "POWER"
 			map.name = "power"
@@ -108,15 +119,14 @@ def parse(String description) {
 	return result
 }
 
-def refresh() 
-{
+def refresh() {
      log.debug "sending refresh command"
      def cmd = []
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0000"  // temp sensor på endpoint 1
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0000"  // Air sensor temp (on unit)
      cmd << "delay 150"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0012"  // Heating setpoint    
      cmd << "delay 150"
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x409"  // testing  
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x409"  // Floor sensor temp (external)
      cmd << "delay 150"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x408"  // power consumption?
 } 
@@ -129,7 +139,7 @@ def poll() {
 def getTemperature(value) {
 	if (value != null) {
 		def celsius = Integer.parseInt(value, 16) / 100
-		if (getTemperatureScale() == "C") {
+		if (location.temperatureScale == "C") {
 			return celsius
 		} else {
 			return Math.round(celsiusToFahrenheit(celsius))
@@ -138,14 +148,26 @@ def getTemperature(value) {
 }
 
 def setHeatingSetpoint(degrees) {
+	def minHeatingSetpoint = state.minsetpoint
+	def maxHeatingSetpoint = state.maxsetpoint
+    
+    log.debug "Minimum Setpoint value=${minHeatingSetpoint} & Maximum Setpoint value=${maxHeatingSetpoint}"
+    
+    //enforce limits of heatingSetpoint
+	if (degrees > maxHeatingSetpoint) {
+		degrees = maxHeatingSetpoint
+	} else if (degrees < minHeatingSetpoint) {
+		degrees = minHeatingSetpoint
+	}
+    
 	if (degrees != null) {
-		def temperatureScale = getTemperatureScale()
+		def temperatureScale = location.temperatureScale
 
 		def degreesInteger = Math.round(degrees)
 		log.debug "setHeatingSetpoint({$degreesInteger} ${temperatureScale})"
 		sendEvent("name": "heatingSetpoint", "value": degreesInteger, "unit": temperatureScale)
 
-		def celsius = (getTemperatureScale() == "C") ? degreesInteger : (fahrenheitToCelsius(degreesInteger) as Double).round(2)
+		def celsius = (location.temperatureScale == "C") ? degreesInteger : (fahrenheitToCelsius(degreesInteger) as Double).round(2)
 		"st wattr 0x${device.deviceNetworkId} 1 0x201 0x12 0x29 {" + hex(celsius * 100) + "}"
 	}
 }
@@ -163,9 +185,11 @@ def configure() {
      zigbee.configureReporting(0x0201, 0x408, 0x21, 30, 3600, 0x0005)  
     ] 
     
-    log.debug  "Read temp sensor attribute. Stored to state in parse()"
+    log.debug  "Read temp sensor config attributes. Pick these up in parse()"
     [
-     zigbee.readAttribute(0x0201, 0x403)
+     zigbee.readAttribute(0x0201, 0x403) +
+     zigbee.readAttribute(0x0201, 0x0003) +
+     zigbee.readAttribute(0x0201, 0x0004)
     ]
 } 
 
