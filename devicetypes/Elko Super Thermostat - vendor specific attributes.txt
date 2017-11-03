@@ -33,4 +33,7 @@
  * 0x421 (unsupported attr)
  * 0x422 (unsupported attr)
 
-Notes: noticed that what I expect to be power consumption is reported only every 10 min, maybe this is a configuration element and maybe this is an average consumption for the last 10 min?
+Notes: noticed that what I expect to be power consumption (a:408) is reported every 10 min, 
+maybe this is a configuration element and maybe this is an average consumption for the last 10 min?
+my configurereporting asks for reporting minimum every half minute and max every 60 min, 
+so the thermostat seems to report every 10 min regardless of the configurereporting.
