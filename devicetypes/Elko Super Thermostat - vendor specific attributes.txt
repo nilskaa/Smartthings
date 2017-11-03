@@ -32,3 +32,5 @@
  * 0x420 (unsupported attr)
  * 0x421 (unsupported attr)
  * 0x422 (unsupported attr)
+
+Notes: noticed that what I expect to be power consumption is reported only every 10 min, maybe this is a configuration element and maybe this is an average consumption for the last 10 min?
