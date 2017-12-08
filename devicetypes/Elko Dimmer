@@ -19,11 +19,10 @@ metadata {
         capability "Refresh"
         capability "Switch"
         capability "Switch Level"
-        capability "Health Check"
         capability "Light"
 
 	//Raw code from elko dimmer: 01 0104 0101 00 04 0000 0003 0006 0008 01 0003
-        fingerprint profileId: "0104", inClusters: "0000, 0003, 0006, 0008", outClusters: "0003"
+	fingerprint profileId: "0104", inClusters: "0000, 0003, 0006, 0008", outClusters: "0003"
     }
 
     tiles(scale: 2) {
@@ -39,11 +38,11 @@ metadata {
             }
         }
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-            state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
+		state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
         }
         standardTile("configure", "device.configure", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-			state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
-		}
+		state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
+	}
         main "switch"
         details(["switch", "refresh", "configure"])
     }
@@ -54,7 +53,7 @@ def parse(String description) {
     log.debug "description is $description"
     def event = zigbee.getEvent(description)
     if (event) {
-    	log.debug "event name= " + event.name + " event value= " + event.value
+    	log.debug "event name= " + event.name + "  event value= " + event.value
         if (event.name=="level" && event.value==0) {}
         else {
             sendEvent(event)
@@ -74,36 +73,24 @@ def setLevel(value) {
     zigbee.setLevel(value)
 }
 
-def installed() {
-// Device wakes up every 1 hour, this interval allows us to miss one wakeup notification before marking offline
-	log.debug "Configured health checkInterval when installed()"
-	sendEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
-}
-
-def updated() {
-// Device wakes up every 1 hours, this interval allows us to miss one wakeup notification before marking offline
-	log.debug "Configured health checkInterval when updated()"
-    sendEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
-}
-
 def refresh() {
     zigbee.onOffRefresh() + zigbee.levelRefresh()
 }
 
 def configure() {
-log.debug "binding to on/off cluster"
+	log.debug "binding to on/off cluster"
 	[
 	 "zdo bind 0x${device.deviceNetworkId} 1 1 0x006 {${device.zigbeeId}} {}"
-	] 
+	]
     
-log.debug "binding to level cluster"
+	log.debug "binding to level cluster"
 	[
 	 "zdo bind 0x${device.deviceNetworkId} 1 1 0x008 {${device.zigbeeId}} {}"
 	]
     
-log.debug  "set up reporting of on/off and level"
+	log.debug  "set up reporting on: on/off and level"
 	[
 	 zigbee.configureReporting(0x006, 0x0000, 0x10, 0, 3600, null) +
-	 zigbee.configureReporting(0x008, 0x0000, 0x20, 0, 3600, 0x0001)
-	]
+	 zigbee.configureReporting(0x008, 0x0000, 0x20, 0, 3600, 0x0001)  
+	] 
 }
