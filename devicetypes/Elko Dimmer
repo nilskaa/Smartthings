@@ -77,13 +77,23 @@ def setLevel(value) {
     zigbee.setLevel(value)
 }
 
+def installed() {
+// Device wakes up every 1 hour, this interval allows us to miss one wakeup notification before marking offline
+	log.debug "Configured health checkInterval when installed()"
+	sendEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+}
+
+def updated() {
+// Device wakes up every 1 hours, this interval allows us to miss one wakeup notification before marking offline
+	log.debug "Configured health checkInterval when updated()"
+    sendEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+}
 
 def refresh() {
     zigbee.onOffRefresh() + zigbee.levelRefresh()
 }
 
 def configure() {
-
 log.debug "binding to on/off cluster"
 	[
 	 "zdo bind 0x${device.deviceNetworkId} 1 1 0x006 {${device.zigbeeId}} {}"
