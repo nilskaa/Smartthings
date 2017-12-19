@@ -47,7 +47,7 @@ metadata {
 				attributeState "heatingSetpoint", action:"thermostat.setHeatingSetpoint", backgroundColor:"#e86d13"
             }
             tileAttribute("device.temperatureMeasurement", key: "SECONDARY_CONTROL"){
-				attributeState "temperatureMeasurement", label: '${currentValue}°' + ' air temperature', backgroundColor:"#e86d13"
+				attributeState "temperatureMeasurement", label: '${currentValue}', backgroundColor:"#e86d13"
             }
         }
 		
@@ -60,8 +60,21 @@ metadata {
         standardTile("configure", "device.configure", inactiveLabel: false, decoration: "flat") {
 			state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
 		}
+        valueTile("mode", "device.mode", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
+			state "mode", label:'${currentValue}', backgroundColor:"#ffffff"
+		}
+        standardTile("heating", "device.heating", width:1, height:1, inactiveLabel: false, decoration: "flat") {
+			state "default", label: "unknown", defaultState: true, icon: "st.unknown.unknown.unkown"
+   			state "idle", label: "idle", icon: ""
+    			state "heating", label: "", icon: "st.thermostat.heating"
+        }
+        standardTile("childlock", "device.childlock", width:1, height:1, inactiveLabel: false, decoration: "flat") {
+			state "default", label: "unknown", defaultState: true, icon: "st.unknown.unknown.unkown"
+   			state "locked", label: "Barne sikring på", icon: ""
+            		state "unlocked", label: "Barne sikring av", icon: ""
+        }
 		main "ETS"
-		details(["ETS", "refresh", "power", "configure"])
+		details(["ETS", "refresh", "power", "configure", "mode", "heating", "childlock"])
 	}
 }
 
@@ -77,35 +90,83 @@ def parse(String description) {
 	}
 	attrData.each {
 		def map = [:]
+      
+      	//415 = Boolean - heating/not heating
+      	if (it.cluster == "0201" && it.attrId == "0415") {
+        	log.debug "HEATING=$it.value"
+            map.name = "heating"
+        	if (it.value == "00") {map.value = "idle"}
+            else if (it.value == "01") {map.value = "heating"}
+        }
+        
+        //413 = Boolean - child lock
+      	if (it.cluster == "0201" && it.attrId == "0413") {
+        	log.debug "CHILDLOCK=$it.value"
+            map.name = "childlock"
+        	if (it.value == "00") {map.value = "unlocked"}
+            else if (it.value == "01") {map.value = "locked"}
+        }
+      
+        //403 = termostat modus. 00=luftføler, 01=gulvføler, 03=gulv vakt
         if (it.cluster == "0201" && it.attrId == "0403") {
             log.debug "CONFIG - Temperature sensor value=$it.value"
 			state.tempsensor = it.value
+            map.name = "mode"
+            if (it.value == "00") {
+            	map.value = "Luftføler modus"
+			} else if (it.value == "01") {
+            	map.value = "Gulvføler modus"
+            } else if (it.value == "03") {
+            	map.value = "Gulv vakt modus"
+            }
+       
+          //0003 = minimum setpoint value    
         } else if (it.cluster == "0201" && it.attrId == "0003") {
         	log.debug "CONFIG - Minimum Setpoint value=${it.value} Hex"
 			state.minsetpoint = Integer.parseInt(it.value,16) 
+            
+          //0004 = maximum setpoint value  
         } else if (it.cluster == "0201" && it.attrId == "0004") {
         	log.debug "CONFIG - Maximum Setpoint value=${it.value} Hex"
 			state.maxsetpoint = Integer.parseInt(it.value,16)
+            
+          //0000 = measured air temperature  
         } else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "00") {
 			log.debug "MEASURED AIR TEMPERATURE - air sensor mode"
 			map.name = "temperature"
             map.value = getTemperature(it.value)
-			map.unit = location.temperatureScale
+			//map.unit = location.temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "01") {
 			log.debug "MEASURED AIR TEMPERATURE - floor sensor mode"
 			map.name = "temperatureMeasurement"
+			map.value = getTemperature(it.value) + "° Luft temperatur"
+			//map.unit = location.temperatureScale
+		} else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "03") {
+			log.debug "MEASURED AIR TEMPERATURE - floor monitor mode"
+			map.name = "temperature"
 			map.value = getTemperature(it.value)
-			map.unit = location.temperatureScale
-		} else if (it.cluster == "0201" && it.attrId == "0012") {
+			//map.unit = location.temperatureScale
+            
+          //0012 = heating setpoint value  
+        } else if (it.cluster == "0201" && it.attrId == "0012") {
 			log.debug "HEATING SETPOINT"
 			map.name = "heatingSetpoint"
 			map.value = getTemperature(it.value)
-			map.unit = location.temperatureScale
+			//map.unit = location.temperatureScale
+            
+          //409 = Measured floor temperature (probe)  
 		} else if (it.cluster == "0201" && it.attrId == "0409" && state.tempsensor == "01") {
 			log.debug "MEASURED FLOOR TEMPERATURE - floor sensor mode"
 			map.name = "temperature"
 			map.value = getTemperature(it.value)
-			map.unit = location.temperatureScale
+			//map.unit = location.temperatureScale
+        } else if (it.cluster == "0201" && it.attrId == "0409" && state.tempsensor == "03") {
+			log.debug "MEASURED FLOOR TEMPERATURE - floor monitor mode"
+			map.name = "temperatureMeasurement"
+			map.value = getTemperature(it.value) + "° Gulv temperatur"
+			//map.unit = location.temperatureScale
+            
+          //408 = power consumption pr 10 minuttes?  
         } else if (it.cluster == "0201" && it.attrId == "0408") {
 			log.debug "POWER"
 			map.name = "power"
@@ -126,9 +187,12 @@ def refresh() {
      cmd << "delay 150"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0012"  // Heating setpoint    
      cmd << "delay 150"
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x409"  // Floor sensor temp (external)
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0409"  // Floor sensor temp (external)
      cmd << "delay 150"
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x408"  // power consumption?
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0408"  // power consumption? 
+     cmd << "delay 150"
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0413"  // childlock   
+     return cmd
 } 
 
 def poll() {
@@ -168,29 +232,25 @@ def setHeatingSetpoint(degrees) {
 		sendEvent("name": "heatingSetpoint", "value": degreesInteger, "unit": temperatureScale)
 
 		def celsius = (location.temperatureScale == "C") ? degreesInteger : (fahrenheitToCelsius(degreesInteger) as Double).round(2)
-		"st wattr 0x${device.deviceNetworkId} 1 0x201 0x12 0x29 {" + hex(celsius * 100) + "}"
+		"st wattr 0x${device.deviceNetworkId} 1 0x0201 0x0012 0x29 {" + hex(celsius * 100) + "}"
 	}
 }
 
 def configure() {
-    log.debug "binding to Thermostat cluster"
-	[
-	 "zdo bind 0x${device.deviceNetworkId} 1 1 0x201 {${device.zigbeeId}} {}"
-    ] 
-    
-    log.debug  "set up reporting of temperature change"
-	[
-     zigbee.configureReporting(0x0201, 0x0000, 0x29, 30, 3600, 0x000A) +
-     zigbee.configureReporting(0x0201, 0x409, 0x29, 30, 3600, 0x000A) +
-     zigbee.configureReporting(0x0201, 0x408, 0x21, 30, 3600, 0x0005)  
-    ] 
-    
-    log.debug  "Read temp sensor config attributes. Pick these up in parse()"
-    [
-     zigbee.readAttribute(0x0201, 0x403) +
-     zigbee.readAttribute(0x0201, 0x0003) +
-     zigbee.readAttribute(0x0201, 0x0004)
-    ]
+  log.debug "Set up reporting and get configuration attributes" 
+  return zigbee.configureReporting(0x0201, 0x0000, 0x29, 0, 3600, 0x000A) +
+	 zigbee.configureReporting(0x0201, 0x0012, 0x29, 0, 3600, 0x0001) +
+    	 zigbee.configureReporting(0x0201, 0x0409, 0x29, 0, 3600, 0x000A) +
+    	 zigbee.configureReporting(0x0201, 0x0408, 0x21, 0, 3600, 0x0005) +
+         zigbee.configureReporting(0x0201, 0x0415, 0x10, 0, 3600, null) +
+	 zigbee.configureReporting(0x0201, 0x0413, 0x10, 0, 3600, null) +
+         zigbee.readAttribute(0x0201, 0x0403) +
+	 zigbee.readAttribute(0x0201, 0x0003) +
+	 zigbee.readAttribute(0x0201, 0x0004)
+     
+  	//log.debug "binding to Thermostat cluster"
+	//"zdo bind 0x${device.deviceNetworkId} 1 1 0x0201 {${device.zigbeeId}} {}"
+  
 } 
 
 private hex(value) {
