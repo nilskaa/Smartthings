@@ -22,7 +22,7 @@
  * 0x410 (unsupported attr)
  * 0x411 (encoding:10, value:00 for all)
  * 0x412 (encoding:10, value:00 for all)
- * 0x413 (encoding:10, value:00 for all)
+ * 0x413 (encoding:10, value:00 for all except gang) <- probably child lock
  * 0x414 (encoding:20, value:1c for gang/bad/entre og 1b for lekerom) <- might be max temp for gulv vakt
  * 0x415 (floating encoding:10, value:00 for gang, 01 for bad/entre/lekerom) <- might be Heating/not heating
  * 0x416 (encoding:41, value:520a000106010107 for both) unhandled length warning
