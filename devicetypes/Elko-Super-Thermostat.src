@@ -20,11 +20,12 @@ metadata {
 		capability "Temperature Measurement"
 		capability "Thermostat"
 		capability "Refresh"
-        capability "Configuration"
-        capability "powerMeter" 
+		capability "Configuration"
+		capability "powerMeter" 
+		capability "Lock" 
 
         //raw: 01 0104 0301 00 03 0000 0003 0201 00
-		fingerprint profileId: "0104", deviceId: "0301", inClusters: "0000, 0003, 0201", endpointId: "01"
+	fingerprint profileId: "0104", deviceId: "0301", inClusters: "0000, 0003, 0201", endpointId: "01"
 	}
 
 	// simulator metadata
@@ -44,14 +45,14 @@ metadata {
         		]
 			}
             tileAttribute("device.heatingSetpoint", key: "SLIDER_CONTROL", inactiveLabel: false, range:"(5..50)"){
-				attributeState "heatingSetpoint", action:"thermostat.setHeatingSetpoint", backgroundColor:"#e86d13"
+			attributeState "heatingSetpoint", action:"thermostat.setHeatingSetpoint", backgroundColor:"#e86d13"
             }
             tileAttribute("device.temperatureMeasurement", key: "SECONDARY_CONTROL"){
-				attributeState "temperatureMeasurement", label: '${currentValue}', backgroundColor:"#e86d13"
+			attributeState "temperatureMeasurement", label: '${currentValue}', backgroundColor:"#e86d13"
             }
         }
 		
-        valueTile("power", "device.power", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
+        valueTile("power", "device.power", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
 			state "default", label:'${currentValue} Watt', backgroundColor:"#ffffff"
 		}
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat") {
@@ -60,21 +61,24 @@ metadata {
         standardTile("configure", "device.configure", inactiveLabel: false, decoration: "flat") {
 			state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
 		}
-        valueTile("mode", "device.mode", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
+        valueTile("mode", "device.mode", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
 			state "mode", label:'${currentValue}', backgroundColor:"#ffffff"
 		}
-        standardTile("heating", "device.heating", width:1, height:1, inactiveLabel: false, decoration: "flat") {
+        standardTile("heating", "device.heating", width:2, height:2, inactiveLabel: false, decoration: "flat") {
 			state "default", label: "unknown", defaultState: true, icon: "st.unknown.unknown.unkown"
-   			state "idle", label: "idle", icon: ""
-    			state "heating", label: "", icon: "st.thermostat.heating"
+   			state "idle", label: "inaktiv", icon: "st.thermostat.heat", backgroundColor: "#ffffff"
+ 			state "heating", label: "aktiv", icon: "st.thermostat.heating", backgroundColor: "#e86d13" 
         }
-        standardTile("childlock", "device.childlock", width:1, height:1, inactiveLabel: false, decoration: "flat") {
-			state "default", label: "unknown", defaultState: true, icon: "st.unknown.unknown.unkown"
-   			state "locked", label: "Barne sikring på", icon: ""
-            		state "unlocked", label: "Barne sikring av", icon: ""
+        standardTile("lock", "device.lock", width:2, height:2, inactiveLabel: false) {
+			state "default", label: "unknown", nextState:"...", defaultState: true, icon: "st.unknown.unknown.unkown"
+   			state "locked", label: "Barne sikring på", action: "lock.unlock", nextState:"unlocked", icon: "", backgroundColor: "#00a0dc"
+			state "unlocked", label: "Barne sikring av", action: "lock.lock", nextState:"locked", icon: "", backgroundColor: "#ffffff"
         }
-		main "ETS"
-		details(["ETS", "refresh", "power", "configure", "mode", "heating", "childlock"])
+        standardTile("identity", "device.identity", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
+			state "default", label:'', backgroundColor:"#ffffff"
+		}
+	main "ETS"
+	details(["ETS", "lock", "mode", "heating", "power", "refresh", "identity", "configure"])
 	}
 }
 
@@ -102,7 +106,7 @@ def parse(String description) {
         //413 = Boolean - child lock
       	if (it.cluster == "0201" && it.attrId == "0413") {
         	log.debug "CHILDLOCK=$it.value"
-            map.name = "childlock"
+            map.name = "lock"
         	if (it.value == "00") {map.value = "unlocked"}
             else if (it.value == "01") {map.value = "locked"}
         }
@@ -117,7 +121,7 @@ def parse(String description) {
 			} else if (it.value == "01") {
             	map.value = "Gulvføler modus"
             } else if (it.value == "03") {
-            	map.value = "Gulv vakt modus"
+            	map.value = "Maksvokter modus"
             }
        
           //0003 = minimum setpoint value    
@@ -135,36 +139,30 @@ def parse(String description) {
 			log.debug "MEASURED AIR TEMPERATURE - air sensor mode"
 			map.name = "temperature"
             map.value = getTemperature(it.value)
-			//map.unit = location.temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "01") {
 			log.debug "MEASURED AIR TEMPERATURE - floor sensor mode"
 			map.name = "temperatureMeasurement"
 			map.value = getTemperature(it.value) + "° Luft temperatur"
-			//map.unit = location.temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "03") {
 			log.debug "MEASURED AIR TEMPERATURE - floor monitor mode"
 			map.name = "temperature"
 			map.value = getTemperature(it.value)
-			//map.unit = location.temperatureScale
             
           //0012 = heating setpoint value  
         } else if (it.cluster == "0201" && it.attrId == "0012") {
 			log.debug "HEATING SETPOINT"
 			map.name = "heatingSetpoint"
 			map.value = getTemperature(it.value)
-			//map.unit = location.temperatureScale
             
           //409 = Measured floor temperature (probe)  
 		} else if (it.cluster == "0201" && it.attrId == "0409" && state.tempsensor == "01") {
 			log.debug "MEASURED FLOOR TEMPERATURE - floor sensor mode"
 			map.name = "temperature"
 			map.value = getTemperature(it.value)
-			//map.unit = location.temperatureScale
         } else if (it.cluster == "0201" && it.attrId == "0409" && state.tempsensor == "03") {
 			log.debug "MEASURED FLOOR TEMPERATURE - floor monitor mode"
 			map.name = "temperatureMeasurement"
 			map.value = getTemperature(it.value) + "° Gulv temperatur"
-			//map.unit = location.temperatureScale
             
           //408 = power consumption pr 10 minuttes?  
         } else if (it.cluster == "0201" && it.attrId == "0408") {
@@ -236,10 +234,20 @@ def setHeatingSetpoint(degrees) {
 	}
 }
 
+def lock() {
+	log.debug "Lock Child lock" 
+	zigbee.writeAttribute(0x0201, 0x0413, 0x10, 01)
+}
+
+def unlock() {
+	log.debug "Unlock Child lock"
+	zigbee.writeAttribute(0x0201, 0x0413, 0x10, 00)
+}
+
 def configure() {
   log.debug "Set up reporting and get configuration attributes" 
   return zigbee.configureReporting(0x0201, 0x0000, 0x29, 0, 3600, 0x000A) +
-	 zigbee.configureReporting(0x0201, 0x0012, 0x29, 0, 3600, 0x0001) +
+  	 zigbee.configureReporting(0x0201, 0x0012, 0x29, 0, 3600, 0x0001) +
     	 zigbee.configureReporting(0x0201, 0x0409, 0x29, 0, 3600, 0x000A) +
     	 zigbee.configureReporting(0x0201, 0x0408, 0x21, 0, 3600, 0x0005) +
          zigbee.configureReporting(0x0201, 0x0415, 0x10, 0, 3600, null) +
@@ -250,7 +258,6 @@ def configure() {
      
   	//log.debug "binding to Thermostat cluster"
 	//"zdo bind 0x${device.deviceNetworkId} 1 1 0x0201 {${device.zigbeeId}} {}"
-  
 } 
 
 private hex(value) {
