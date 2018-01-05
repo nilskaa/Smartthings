@@ -1,11 +1,16 @@
 *	Elko ESH Plus Super TR RF
  *
- *-------
- * Info 
- *-------
+ *-----------------------------
+ * Info - this first section lists atributes that are used by Elko Super TR which are 
+ *        part of the Zigbee cluster definition for the thermostat cluster (0201)
+ *-----------------------------
  * Minimum setpoint: Cluster 0x201 - Attribute 0003 = 5 degrees C
  * Maximum setpoint: Cluster 0x201 - Attribute 0004 = 50 degrees C
+ * Measured air temperature: Cluster 0x201 - Attribute 0000
+ * Heating Setpoint: Cluster 0x201 - Attribute 0012
  * Cluster 0x201 - Attribute 0011 = encoding:29, value:0a28 - is this a default value of 26 degrees C?
+ *
+ *
  *
  *-----------------------------
  * vendor specific attributes
