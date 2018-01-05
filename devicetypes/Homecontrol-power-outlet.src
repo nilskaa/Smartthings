@@ -38,7 +38,7 @@ metadata {
 
 	// UI tile definitions
 	tiles (scale: 2) {
-		standardTile("switch1", "device.switch", width: 6, height: 3, canChangeIcon: true, decoration: "flat") {
+		standardTile("switch1", "device.switch1", width: 6, height: 3, canChangeIcon: true, decoration: "flat") {
 			state "off", label: '${name}', action: "Switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
 			state "on", label: '${name}', action: "Switch.off", icon: "st.switches.switch.on", backgroundColor: "#00A0DC"
 		}
@@ -66,7 +66,21 @@ metadata {
     
 	preferences {
 		input name: "tempoffset", type: "decimal", title: "Temperature offset", description: "temp offset (eg. -1)", required: true, displayDuringSetup: true
+        input name: "restorestate", type: "bool", title: "Restore State after power loss", description: "Yes / No", required: true, displayDuringSetup: true
 	}
+}
+
+//Todo: need to call this when power is restored (maybe through poll when found diff)
+def initialize() {
+	log.debug "Initializing Homecontrol power outlet..."
+    
+    //switch 1:
+    if (state.switch1 == "on") on()
+    else off()
+    
+    //switch 2:
+    if (state.switch2 == "on") on2()
+    else off2()
 }
 
 // Parse incoming device messages to generate events
@@ -89,27 +103,63 @@ def parse(String description) {
 	}
 	attrData.each {
 		def map = [:]
+        
+        //Measured room temperature:
 		if (it.cluster == "0402" && it.sourceEndpoint == "01" && it.attrId == "0000") {
 			log.debug "Room temperature"
 			map.name = "roomtemp"
 			map.value = (getTemperature(it.value) + Double.parseDouble("$tempoffset"))
 			map.unit = temperatureScale
-		} else if (it.cluster == "0402" && it.sourceEndpoint == "02" && it.attrId == "0000") {
+		} 
+        
+        //Internal temperature of the unit? - seems a bit high
+        else if (it.cluster == "0402" && it.sourceEndpoint == "02" && it.attrId == "0000") {
 			log.debug "Internal temperature"
 			map.name = "internaltemp"
 			map.value = (getTemperature(it.value) + Double.parseDouble("$tempoffset"))
 			map.unit = temperatureScale
-		} else if (it.cluster == "0006" && it.sourceEndpoint == "01" && it.attrId == "0000") {
+		} 
+        
+        //switch 1:
+        else if (it.cluster == "0006" && it.sourceEndpoint == "01" && it.attrId == "0000") { 
 			log.debug "Rele 1 status"
 			map.name = "switch"
-			if (it.value == "00") map.value = "off"
-			else if (it.value == "01") map.value = "on"
-		} else if (it.cluster == "0006" && it.sourceEndpoint == "02" && it.attrId == "0000") {
+			if (it.value == "00") {
+            	map.value = "off"
+            }
+			else if (it.value == "01") {
+            	map.value = "on"
+            }
+            
+            //check if back from poweroutage:
+            if (restorestate) {
+            	if (map.value != state.switch1) {
+                	log.debug "confirmed mismatch of relay states due to poweroutage"
+                	initialize()
+            	}
+            }   
+		} 
+        
+        //Switch 2:
+        else if (it.cluster == "0006" && it.sourceEndpoint == "02" && it.attrId == "0000") {
 			log.debug "Rele 2 status"
 			map.name = "switch2"
-			if (it.value == "00") map.value = "off"
-			else if (it.value == "01") map.value = "on"
+			if (it.value == "00") {
+            	map.value = "off"
+            }
+			else if (it.value == "01") {
+            	map.value = "on"
+            }
+            
+            //check if back from poweroutage:
+            if (restorestate) {
+            	if (map.value != state.switch2) {
+                	log.debug "confirmed mismatch of relay states due to poweroutage"
+                	initialize()
+            	}
+            }      
 		}
+        
 		if (map) {
 			result << createEvent(map)
 		}
@@ -122,24 +172,28 @@ def parse(String description) {
 
 def on() {
 	log.debug "Relay 1 on()"
-	sendEvent(name: "switch", value: "on")
+    state.switch1 = "on" //keep permanent track of desired switch state
+	sendEvent(name: "switch1", value: "on")
 	"st cmd 0x${device.deviceNetworkId} 0x01 0x0006 0x1 {}"
 }
 
 def off() {
 	log.debug "Relay 1 off()"
-	sendEvent(name: "switch", value: "off")
+    state.switch1 = "off" //keep permanent track of desired switch state
+	sendEvent(name: "switch1", value: "off")
 	"st cmd 0x${device.deviceNetworkId} 0x01 0x0006 0x0 {}"
 }
 
 def on2() {
 	log.debug "Relay 2 on()"
+    state.switch2 = "on" //keep permanent track of desired switch state
 	sendEvent(name: "switch2", value: "on")
 	"st cmd 0x${device.deviceNetworkId} 0x02 0x0006 0x1 {}"
 }
 
 def off2() {
 	log.debug "Relay 2 off()"
+    state.switch2 = "off" //keep permanent track of desired switch state
 	sendEvent(name: "switch2", value: "off")
 	"st cmd 0x${device.deviceNetworkId} 0x02 0x0006 0x0 {}"
 }
