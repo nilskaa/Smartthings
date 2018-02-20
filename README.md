@@ -1,2 +1,0 @@
-# Smartthings
-My smartthings projects
