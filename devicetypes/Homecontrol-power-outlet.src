@@ -1,0 +1,174 @@
+/**
+ *  Copyright 2017 SmartThings
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ * Cant get report
+ */
+ 
+metadata {
+	definition (name: "Homecontrol power outlet", namespace: "nilskaa@gmail.com", author: "nilskaa@gmail.com") {
+		capability "Switch" 
+        capability "temperatureMeasurement" 
+        
+        command "refresh"
+        
+        //01 0104 0002 00 04 0000 0003 0006 0402 01 0003
+        fingerprint profileId: "0104", deviceId: "0002", inClusters: "0000,0003,0006,0402", endpointId: "01", outClusters: "0003", model: "HCOHCD" 
+	}
+
+	tiles(scale: 2) {
+    	
+        //main device is on or off:
+        standardTile("switch", "device.switch", width: 6, height: 1, inactiveLabel: false, canChangeIcon: true) { 
+        	state "on", label:"On", nextState:"off", action:"off", backgroundColor: "#00a0dc", icon: "st.switches.switch.on"
+            state "off", label:"Off", nextState:"on", action:"on", backgroundColor: "#ffffff", icon: "st.switches.switch.off"
+        	//state "Updating", label:"Updating", backgroundColor: "#ffffff", icon: "st.secondary.secondary"
+        }
+
+        //my child devices - socket 1 and 2:
+        childDeviceTile("socket1", "socket1", height: 3, width: 6, childTileName: "socket1") 
+ 		childDeviceTile("socket2", "socket2", height: 3, width: 6, childTileName: "socket2") 
+		
+        valueTile("temperature", "device.temperature", width: 2, height: 1, inactiveLabel: false, decoration: "flat") {
+			state "heat", label:'${currentValue}° room', unit:"C", backgroundColor:"#ffffff"
+		}
+        
+        valueTile("internaltemp", "device.internaltemp", width: 2, height: 1, inactiveLabel: false, decoration: "flat") {
+			state "heat", label:'${currentValue}° internal', unit:"C", backgroundColor:"#ffffff"
+		}
+        
+        standardTile("refresh", "device.refresh", width: 2, height: 1, inactiveLabel: false, decoration: "flat") {
+			state "default", action:"refresh", icon:"st.secondary.refresh"
+		}
+        
+        main("switch")
+	}
+	preferences {
+		input name: "tempoffset", type: "decimal", title: "Temperature offset", description: "temp offset (eg. -1)", required: true, displayDuringSetup: true
+	}
+}
+
+// Parse incoming device messages to generate events
+def parse(String description) {
+
+	log.debug "Parse description $description"
+	List result = []
+	def descMap = zigbee.parseDescriptionAsMap(description)
+	log.debug "Desc Map: $descMap"
+	List attrData = [[cluster: descMap.clusterId, sourceEndpoint: descMap.sourceEndpoint, attrId: descMap.attrId, value: descMap.value]]
+	log.debug attrData
+	descMap.additionalAttrs.each {
+		attrData << [cluster: descMap.clusterId, sourceEndpoint: it.sourceEndpoint, attrId: it.attrId, value: it.value]
+	}
+	attrData.each {
+		def map = [:]
+
+		//Measured room temperature:
+        if (it.cluster == "0402" && it.sourceEndpoint == "01" && it.attrId == "0000") {
+			log.debug "Room temperature"
+			map.name = "temperature"
+			map.value = (getTemperature(it.value) + Double.parseDouble("$tempoffset"))
+			map.unit = temperatureScale
+		} 
+        
+        //Internal temperature of the unit? - seems a bit high
+        else if (it.cluster == "0402" && it.sourceEndpoint == "02" && it.attrId == "0000") {
+			log.debug "Internal temperature"
+			map.name = "internaltemp"
+			map.value = (getTemperature(it.value) + Double.parseDouble("$tempoffset"))
+			map.unit = temperatureScale
+		} 
+
+        //switch 1:
+        if (it.cluster == "0006" && it.sourceEndpoint == "01" && it.attrId == "0000"){ 
+			log.debug "Rele 1 status"
+			map.name = "socket1"
+			if (it.value == "00") {
+            	map.value = "off"
+            }
+			else if (it.value == "01") {
+            	map.value = "on"
+            }
+		} 
+        
+        //Switch 2:
+        else if (it.cluster == "0006" && it.sourceEndpoint == "02" && it.attrId == "0000"){
+			log.debug "Rele 2 status"
+			map.name = "socket2"
+			if (it.value == "00") {
+            	map.value = "off"
+            }
+			else if (it.value == "01") {
+            	map.value = "on"
+            }
+		}
+        
+		if (map) {
+			result << createEvent(map)
+		}
+		log.debug "Parse returned $map"
+	}
+	return result
+}
+
+def installed() {
+	state.counter = state.counter ? state.counter + 1 : 1
+	if (state.counter == 1) {                
+       addChildDevice(
+				"Homecontrol power outlet Socket",
+				"${device.deviceNetworkId}.1",
+				device.hub.id,
+				[completedSetup: true, label: "Socket 1", isComponent: true, componentName: "socket1", componentLabel: "Socket 1"])
+                
+		addChildDevice(
+				"Homecontrol power outlet Socket",
+				"${device.deviceNetworkId}.2",
+				device.hub.id,
+				[completedSetup: true, label: "Socket 2", isComponent: true, componentName: "socket2", componentLabel: "Socket 2"])
+}
+    
+    //set up reporting of temperature values:
+    zigbee.configureReporting(0x0402, 0x0000, 0x29, 1, 3600, 0x01)
+    
+}
+
+def refresh() {
+	log.debug "sending refresh command"
+   
+    delayBetween([
+        zigbee.readAttribute(0x0006, 0000, [destEndpoint: 0x01]), // Read on/off value at End point 0x01
+    	zigbee.readAttribute(0x0006, 0000, [destEndpoint: 0x02]), // Read on/off value at End point 0x02
+        zigbee.readAttribute(0x0402, 0000, [destEndpoint: 0x01]), // temp sensor på endpoint 1
+        zigbee.readAttribute(0x0402, 0000, [destEndpoint: 0x02])  // temp sensor på endpoint 2
+	], 100)
+}
+
+void childOn(String dni) {
+		//if any socket is on the device is considered on:
+		sendEvent(name: "switch", value: "on")
+}
+void childOff(String dni) {
+		//Both sockets must be off for the device to be considered off
+        if (!childDevices.find{it.deviceNetworkId != dni && it.currentValue("switch") == "on"}) { 
+			sendEvent(name: "switch", value: "off") 
+	 	} 
+}
+
+def getTemperature(value) {
+	if (value != null) {
+		def celsius = Integer.parseInt(value, 16) / 100
+		if (getTemperatureScale() == "C") {
+			return celsius
+		} else {
+			return Math.round(celsiusToFahrenheit(celsius))
+		}
+	}
+}
