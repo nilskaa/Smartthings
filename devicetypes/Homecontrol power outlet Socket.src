@@ -1,0 +1,107 @@
+/**
+ *  Copyright 2017 SmartThings
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ */
+metadata {
+	definition (name: "Homecontrol power outlet Socket", namespace: "nilskaa@gmail.com", author: "nilskaa@gmail.com") {
+		capability "Switch"
+
+		command "on"
+		command "off"
+      
+	}
+
+	tiles {
+    	standardTile("socket1", "device.switch", width: 1, height: 1, decoration: "flat") {
+			state "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#00A0DC", nextState:"off"
+            state "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff", nextState:"on"
+		}
+        standardTile("socket2", "device.switch", width: 1, height: 1, decoration: "flat") {
+			state "on", label: '${name}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#00A0DC", nextState:"off"
+            state "off", label: '${name}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff", nextState:"on"
+		}
+
+	}
+}
+
+def installed() {
+	sendEvent(name: "switch", value: "off")
+}
+
+def parse(String description) {
+	log.debug "Parse description $description"
+}
+
+def on() {
+		sendEvent(name: "switch", value: "on")
+        parent.childOn(device.deviceNetworkId)
+        onOffCmd(1, device.deviceNetworkId)
+}
+
+def off() {
+		sendEvent(name: "switch", value: "off")
+        parent.childOff(device.deviceNetworkId)
+        onOffCmd(0, device.deviceNetworkId)
+}
+
+String channelNumber(String dni){
+    def chnl = dni.substring(dni.indexOf(".")+1)
+   	if (chnl=="1"){return "socket1"}
+    else if (chnl=="2"){return "socket2"}
+    else return null
+}
+
+String parentdni(String dni){
+	return dni.substring(0,dni.indexOf("."))
+}
+
+def onOffCmd(Integer command, String dni){
+    def socketNumber=channelNumber(dni)
+    log.debug "Switching " + socketNumber + " to "+ command
+    
+    if (socketNumber=="socket1" && command==1){ 
+        on1()
+    } 
+    
+    else if (socketNumber=="socket1" && command==0){ 
+		off1()
+    }
+    
+    else if (socketNumber=="socket2" && command==1){
+		on2()
+    }
+    
+    else if (socketNumber=="socket2" && command==0){
+		off2()
+    }
+    else return null
+}
+
+def on1() {
+	log.debug "trying to send command: 1/1 on:" + parentdni(device.deviceNetworkId)
+	"st cmd 0x${parentdni(device.deviceNetworkId)} 0x01 0x0006 0x1 {}"
+}
+
+def off1() {
+	log.debug "trying to send command: 1/0 on:" + parentdni(device.deviceNetworkId)
+    "st cmd 0x${parentdni(device.deviceNetworkId)} 0x01 0x0006 0x0 {}"
+}
+
+def on2() {
+	log.debug "trying to send command: 2/1 on:" + parentdni(device.deviceNetworkId)
+	"st cmd 0x${parentdni(device.deviceNetworkId)} 0x02 0x0006 0x1 {}"
+}
+
+def off2() {
+	log.debug "trying to send command: 2/0 on:" + parentdni(device.deviceNetworkId)
+	"st cmd 0x${parentdni(device.deviceNetworkId)} 0x02 0x0006 0x0 {}"
+}
