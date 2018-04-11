@@ -16,7 +16,7 @@
  * vendor specific attributes
  *-----------------------------
  * 0x401 (encoding:21, value:03e8 for bath/entre = 1000 decimal) value=07d0 for gang and lekerom = 2000
- * 0x402 (encoding:42, value:426164 for bathroom (octet) and not found for entre, gang, lekerom)
+ * 0x402 (encoding:42, value: <verified sonetext as hexstring>
  * 0x403 (encoding:30, value: <verified 00=luftføler, 01=gulvføler, 03=gulv vakt>
  * 0x404 (encoding:20 value:0f for all termostats)
  * 0x405 (encoding:10 value:0 for all termostats)
