@@ -16,7 +16,7 @@
  *	Date: 2017-23-08
  */
 metadata {
-	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes") {
+	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes", vid: "generic-thermostat-1") {
 		capability "Temperature Measurement"
 		capability "Thermostat"
 		capability "Refresh"
