@@ -19,13 +19,13 @@
  * 0x402 (encoding:42, value: <verified sonetext as hexstring>
  * 0x403 (encoding:30, value: <verified 00=luftføler, 01=gulvføler, 03=gulv vakt>
  * 0x404 (encoding:20 value:0f for all termostats)
- * 0x405 (encoding:10 value:0 for all termostats)
- * 0x406 (encoding:10 value:01 for all termostats)
+ * 0x405 (encoding:10 value:0=thermostat mode ?=regulator mode
+ * 0x406 (encoding:10 value:01=device on ??=device off)
  * 0x407 (encoding:41 value:00 for all termostats) unhandled length warning)
  * 0x408 (encoding:21 value: floating values ex: 001a, 01a9, 01dd, 0000, 0087 <- probably power consumption
  * 0x409 (encoding:29 value: <verified floor temperature sensor measurement>
  * 0x410 (unsupported attr)
- * 0x411 (encoding:10, value:00 for all)
+ * 0x411 (encoding:10, value:00='nattsenking' off ??=`nattsenking' on)
  * 0x412 (encoding:10, value:00 for all)
  * 0x413 (encoding:10, value: <verified child lock> 00=unlocked 01=locked
  * 0x414 (encoding:20, value:1c for gang/bad/entre og 1b for lekerom) <- might be max temp for gulv vakt
