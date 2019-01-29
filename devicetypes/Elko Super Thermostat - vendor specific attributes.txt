@@ -45,7 +45,7 @@
  * 0x0000 (encoding:, value:) not mapped yet
  * 0x0004 (encoding:, value:) not mapped yet 
  * 0x0005 (encoding:, value:) not mapped yet
- * 0x0007 (encoding:, value:) not mapped yet
+ * 0x0007 (encoding:30, value:00) not mapped yet
 
 
 Notes: noticed that what I expect to be power consumption (a:408) is reported every 10 min, 
