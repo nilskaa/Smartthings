@@ -45,7 +45,7 @@
  * 0x0000 (encoding:20, value:01) 
  * 0x0004 (encoding:42, value:454C4B4F) hex->string gives: ELKO
  * 0x0005 (encoding:42, value:5375706572205452) hex->string gives: Super TR
- * 0x0007 (encoding:30, value:00) 00=unknown power source
+ * 0x0007 (encoding:30, value:00) <verified power source> 00=unknown
 
 
 Notes: noticed that what I expect to be power consumption (a:408) is reported every 10 min, 
