@@ -13,7 +13,7 @@
  *
  *
  *-----------------------------
- * vendor specific attributes
+ * vendor specific attributes in cluster 0x201
  *-----------------------------
  * 0x401 (encoding:21, value:03e8 for bath/entre = 1000 decimal) value=07d0 for gang and lekerom = 2000
  * 0x402 (encoding:42, value: <verified sonetext as hexstring>
