@@ -70,7 +70,7 @@ def on() {
 }
 
 def setLevel(value) {
-    zigbee.setLevel(value)
+    zigbee.on() + zigbee.setLevel(value)
 }
 
 def refresh() {
