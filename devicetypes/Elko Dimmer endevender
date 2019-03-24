@@ -13,88 +13,102 @@
  */
 
 metadata {
-    definition (name: "Elko Dimmer-Endevender", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes") {
-        capability "Actuator"
-        capability "Button"
-        capability "Momentary"
-        capability "Refresh"
+    definition (name: "Elko Dimmer-Endevender", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes and Tor André Roland") {
         capability "Switch"
+        capability "Refresh"
         capability "Switch Level"
-        capability "Light"
+        capability "Configuration"
         
-        attribute "buttonStatus", "enum", ["pushed", "held", "released"]
-
+        
         //Raw code from elko dimmer-endevender: 01 0104 0104 00 02 0000 0003 03 0003 0006 0008
         fingerprint profileId: "0104", inClusters: "0000, 0003", outClusters: "0003, 0006, 0008"
     }
-
-    tiles(scale: 2) {
-        multiAttributeTile(name:"buttonStatus", type: "lighting", width: 6, height: 4, canChangeIcon: true){
-            tileAttribute ("device.buttonStatus", key: "PRIMARY_CONTROL") {
-                attributeState("default", label:'Pushed', backgroundColor:"#00a0dc", icon:"st.switches.light.on")
-				attributeState("pushed", label:'Pushed', backgroundColor:"#00a0dc", icon:"st.switches.light.on")
-				attributeState("held", label:'Held', backgroundColor:"#00a0dc", icon:"st.switches.light.on")
-				attributeState("released", label:'Released', action: "momentary.push", backgroundColor:"#ffffff", icon:"st.switches.light.off")
-            }
-            tileAttribute ("device.level", key: "SLIDER_CONTROL") {
-                attributeState "level", action:"switch level.setLevel"
-            }
+    
+    	// UI tile definitions
+	tiles {
+		standardTile("button", "device.switch", width: 2, height: 2, canChangeIcon: true) {
+			state "off", label: 'Off', action: "switch.on", icon: "st.Kids.kid10", backgroundColor: "#ffffff", nextState: "on"
+			state "on", label: 'On', action: "switch.off", icon: "st.Kids.kid10", backgroundColor: "#79b821", nextState: "off"
+		}
+		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat") {
+			state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
+		}        
+        controlTile("levelSliderControl", "device.level", "slider", height: 1, width: 2, inactiveLabel: false, backgroundColor:"#ffe71e") {
+            state "level", action:"switch level.setLevel"
         }
-        standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-		state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
+        valueTile("lValue", "device.level", inactiveLabel: true, height:1, width:1, decoration: "flat") {
+            state "levelValue", label:'${currentValue}%', unit:"", backgroundColor: "#53a7c0"
         }
-        
-        main "switch"
-        details(["buttonStatus", "refresh"])
-    }
-}
+        standardTile("configure", "device.configure", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
+		}
 
-//adds functionality to press the centre tile as a virtualApp Button
-def push() {
-	displayInfoLog(": Virtual App Button Pressed")
-	sendEvent(name: "button", value: "pushed", data: [buttonNumber: 1], descriptionText: "$device.displayName app button was pushed", isStateChange: true)
-	runIn(1, clearButtonStatus)
+		main(["button"])
+		details(["button", "refresh","levelSliderControl","lValue","configure"])
+	}
+
 }
 
 // Parse incoming device messages to generate events
 def parse(String description) {
-    log.debug "description is $description"
-    List result = []
 	def descMap = zigbee.parseDescriptionAsMap(description)
-	log.debug "Desc Map: $descMap"
-	List attrData = [[cluster: descMap.cluster ,attrId: descMap.attrId, value: descMap.value]]
-	descMap.additionalAttrs.each {
-	    attrData << [cluster: descMap.cluster, attrId: it.attrId, value: it.value]
-	}
-	attrData.each {
-      	//test if clusters, attributes and values are identified:
-      	log.debug "Cluster=" + it.cluster + " Attribute=" + it.attrId + " Value=" + it.value	
-	}
-	return result
+    def oldValue = null
+    def name = null
+    def value = null
+    def direction = null
     
-    /* unable to get events: (this is not working)
-    def event = zigbee.getEvent(description)
-    if (event) {
-    	log.debug "event name= " + event.name + "  event value= " + event.value
-        if (event.name=="level" && event.value==0) {}
-        else {
-            sendEvent(event)
-        }
-    }*/
+    if (descMap.clusterInt == 6 && descMap.commandInt == 2) {
+        name = "switch"
+        oldValue = device.currentValue("switch")
+        value = oldValue == "on" ? "off" : "on"
+    } 
+    else if (descMap.clusterInt == 8 && descMap.commandInt == 2) {
+    	name = "level"
+        oldValue = device.currentValue("level")
+        direction = descMap.data[0] == "01" ? "down" : "up"
+        value = direction == "down" ? oldValue - 10 : oldValue + 10
+        
+        if (value < 1) value = 1
+    	else if( value > 100) value = 100
+    }
+
+    // createEvent returns a Map that defines an Event
+    def event = createEvent(name: name, value: value)
+    log.debug "Event is $event"
+    sendEvent(event)
 }
 
-def setLevel(value) {
-    //zigbee.setLevel(value)
-    //replace with adjusting a variable between 0-100%
-    //maybe create, maintain and report state.level
+def on() {
+	sendEvent(name: "switch", value: "on")
+    log.info "Dimmer On"
 }
 
-def refresh() {
-    //zigbee.onOffRefresh() + zigbee.levelRefresh()
-    //testing:
-    log.debug "Refresh pushed"
+def off() {
+	sendEvent(name: "switch", value: "off")
+    log.info "Dimmer Off"
 }
 
-def clearButtonStatus() {
-	sendEvent(name: "buttonStatus", value: "released", isStateChange: true, displayed: false)	
+def setLevel(val){
+    log.info "setLevel $val"
+    
+    if (val < 1) val = 1
+    else if( val > 100) val = 100
+    
+    on()
+    sendEvent(name: "level", value: val)
+}
+
+def configure() {
+	log.debug "binding to on/off cluster"
+	"zdo bind 0x${device.deviceNetworkId} 1 1 0x0006 {${device.zigbeeId}} {}"
+    
+	log.debug "binding to level cluster"
+	"zdo bind 0x${device.deviceNetworkId} 1 1 0x0008 {${device.zigbeeId}} {}"
+    
+	log.debug  "set up reporting on: on/off and level"
+	zigbee.configureReporting(0x0006, 0x0000, 0x10, 0, 0, null) +
+	zigbee.configureReporting(0x0008, 0x0000, 0x20, 0, 0, 0x0001)
+    
+    sendEvent(name: "switch", value: "on")
+    sendEvent(name: "level", value: 100)
 }
