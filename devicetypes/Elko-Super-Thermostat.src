@@ -21,8 +21,8 @@ metadata {
 		capability "Thermostat"
 		capability "Refresh"
 		capability "Configuration"
-		capability "powerMeter" 
-		capability "Lock" 
+		capability "powerMeter"
+		capability "Lock"
 
         //raw: 01 0104 0301 00 03 0000 0003 0201 00
 	fingerprint profileId: "0104", deviceId: "0301", inClusters: "0000, 0003, 0201", endpointId: "01"
@@ -64,7 +64,7 @@ metadata {
         valueTile("mode", "device.mode", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
 			state "mode", label:'${currentValue}', backgroundColor:"#ffffff"
 		}
-        standardTile("heating", "device.heating", width:2, height:2, inactiveLabel: false, decoration: "flat") {
+        standardTile("heating", "device.thermostatOperatingState", width:2, height:2, inactiveLabel: false, decoration: "flat") {
 			state "default", label: "unknown", defaultState: true, icon: "st.unknown.unknown.unkown"
    			state "idle", label: "inaktiv", icon: "st.thermostat.heat", backgroundColor: "#ffffff"
  			state "heating", label: "aktiv", icon: "st.thermostat.heating", backgroundColor: "#e86d13" 
@@ -98,11 +98,11 @@ def parse(String description) {
       	//415 = Boolean - heating/not heating
       	if (it.cluster == "0201" && it.attrId == "0415") {
         	log.debug "HEATING=$it.value"
-            map.name = "heating"
+            map.name = "thermostatOperatingState"
         	if (it.value == "00") {map.value = "idle"}
             else if (it.value == "01") {map.value = "heating"}
         }
-        
+                
         //413 = Boolean - child lock
       	if (it.cluster == "0201" && it.attrId == "0413") {
         	log.debug "CHILDLOCK=$it.value"
@@ -245,7 +245,9 @@ def unlock() {
 }
 
 def configure() {
-  log.debug "Set up reporting and get configuration attributes" 
+  log.debug "Set up reporting and get configuration attributes"
+  sendEvent(name: "supportedThermostatModes", value: ["heat"])
+  sendEvent(name: "thermostatMode", value: "heat")
   return zigbee.configureReporting(0x0201, 0x0000, 0x29, 0, 3600, 0x000A) +
   	 zigbee.configureReporting(0x0201, 0x0012, 0x29, 0, 3600, 0x0001) +
     	 zigbee.configureReporting(0x0201, 0x0409, 0x29, 0, 3600, 0x000A) +
