@@ -75,7 +75,7 @@ metadata {
 			state "unlocked", label: "Barne sikring av", action: "lock.lock", nextState:"locked", icon: "", backgroundColor: "#ffffff"
         }
         standardTile("identity", "device.identity", inactiveLabel: false, decoration: "flat", width: 4, height: 1) {
-			state "default", label:'', backgroundColor:"#ffffff"
+			state "default", label: '${currentValue}', backgroundColor:"#ffffff"
 		}
 	main "ETS"
 	details(["ETS", "lock", "mode", "heating", "power", "refresh", "identity", "configure"])
@@ -109,6 +109,13 @@ def parse(String description) {
             map.name = "lock"
         	if (it.value == "00") {map.value = "unlocked"}
             else if (it.value == "01") {map.value = "locked"}
+        }
+	
+	//402 = zone text
+      	if (it.cluster == "0201" && it.attrId == "0402") {
+        	log.debug "ZONETEXT=$it.value"
+            map.name = "identity"
+        	map.value = hexToAscii(it.value)
         }
       
         //403 = termostat modus. 00=luftføler, 01=gulvføler, 03=gulv vakt
@@ -190,6 +197,9 @@ def refresh() {
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0408"  // power consumption? 
      cmd << "delay 150"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0413"  // childlock   
+     cmd << "delay 150"
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0402"  // zonetext
+     cmd << "delay 150"	
      return cmd
 } 
 
@@ -256,7 +266,8 @@ def configure() {
 	 zigbee.configureReporting(0x0201, 0x0413, 0x10, 0, 3600, null) +
          zigbee.readAttribute(0x0201, 0x0403) +
 	 zigbee.readAttribute(0x0201, 0x0003) +
-	 zigbee.readAttribute(0x0201, 0x0004)
+	 zigbee.readAttribute(0x0201, 0x0004) +
+	 zigbee.readAttribute(0x0201, 0x0402)
      
   	//log.debug "binding to Thermostat cluster"
 	//"zdo bind 0x${device.deviceNetworkId} 1 1 0x0201 {${device.zigbeeId}} {}"
@@ -264,4 +275,15 @@ def configure() {
 
 private hex(value) {
 	new BigInteger(Math.round(value).toString()).toString(16)
+}
+
+private static String hexToAscii(String hexStr) {
+    StringBuilder output = new StringBuilder("");
+     
+    for (int i = 0; i < hexStr.length(); i += 2) {
+        String str = hexStr.substring(i, i + 2);
+        output.append((char) Integer.parseInt(str, 16));
+    }
+     
+    return output.toString();
 }
