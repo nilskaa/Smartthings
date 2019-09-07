@@ -95,42 +95,51 @@ def parse(String description) {
 	attrData.each {
 		def map = [:]
       
+      //415 = Thermostat/Regulator
+       if (it.cluster == "0201" && it.attrId == "0405") {
+        	log.debug "OPERATING MODE=$it.value"
+            state.operatingmode = it.value
+            map.name = "mode"
+            if (it.value == "01") map.value = "REGULATOR"
+            else map.value = "THERMOSTAT"
+        }
+      
       	//415 = Boolean - heating/not heating
       	if (it.cluster == "0201" && it.attrId == "0415") {
-        	log.debug "HEATING=$it.value"
-            map.name = "thermostatOperatingState"
+		log.debug "HEATING=$it.value"
+		map.name = "thermostatOperatingState"
         	if (it.value == "00") {map.value = "idle"}
-            else if (it.value == "01") {map.value = "heating"}
+		else if (it.value == "01") {map.value = "heating"}
         }
                 
         //413 = Boolean - child lock
       	if (it.cluster == "0201" && it.attrId == "0413") {
-        	log.debug "CHILDLOCK=$it.value"
-            map.name = "lock"
-        	if (it.value == "00") {map.value = "unlocked"}
-            else if (it.value == "01") {map.value = "locked"}
+		log.debug "CHILDLOCK=$it.value"
+		map.name = "lock"
+		if (it.value == "00") {map.value = "unlocked"}
+		else if (it.value == "01") {map.value = "locked"}
         }
 	
 	//402 = zone text
       	if (it.cluster == "0201" && it.attrId == "0402") {
-        	log.debug "ZONETEXT=$it.value"
-            map.name = "identity"
+		log.debug "ZONETEXT=$it.value"
+		map.name = "identity"
         	map.value = hexToAscii(it.value)
         }
       
         //403 = termostat modus. 00=luftføler, 01=gulvføler, 03=gulv vakt
         if (it.cluster == "0201" && it.attrId == "0403") {
-            log.debug "CONFIG - Temperature sensor value=$it.value"
-			state.tempsensor = it.value
-            map.name = "mode"
-            if (it.value == "00") {
-            	map.value = "Luftføler modus"
-			} else if (it.value == "01") {
-            	map.value = "Gulvføler modus"
-            } else if (it.value == "03") {
-            	map.value = "Maksvokter modus"
-            }
-       
+		log.debug "CONFIG - Temperature sensor value=$it.value"
+		state.tempsensor = it.value
+            	map.name = "mode"
+            	//check operating mode
+            	if(state.operatingmode == "00"){
+            		if (it.value == "00") { map.value = "Luftføler modus"} 
+                	else if (it.value == "01") {map.value = "Gulvføler modus"} 
+                	else if (it.value == "03") {map.value = "Maksvokter modus"}
+            	}
+            	else map.value = "Regulator"
+            
           //0003 = minimum setpoint value    
         } else if (it.cluster == "0201" && it.attrId == "0003") {
         	log.debug "CONFIG - Minimum Setpoint value=${it.value} Hex"
@@ -189,17 +198,21 @@ def refresh() {
      log.debug "sending refresh command"
      def cmd = []
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0000"  // Air sensor temp (on unit)
-     cmd << "delay 150"
+     cmd << "delay 400"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0012"  // Heating setpoint    
-     cmd << "delay 150"
+     cmd << "delay 400"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0409"  // Floor sensor temp (external)
-     cmd << "delay 150"
+     cmd << "delay 400"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0408"  // power consumption? 
-     cmd << "delay 150"
+     cmd << "delay 400"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0413"  // childlock   
-     cmd << "delay 150"
+     cmd << "delay 400"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0402"  // zonetext
-     cmd << "delay 150"	
+     cmd << "delay 400"
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0405"  // Thermostat / Regulator mode
+     cmd << "delay 400"	
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0403"  // Thermostat modes
+     cmd << "delay 400"	
      return cmd
 } 
 
@@ -225,12 +238,14 @@ def setHeatingSetpoint(degrees) {
     
     log.debug "Minimum Setpoint value=${minHeatingSetpoint} & Maximum Setpoint value=${maxHeatingSetpoint}"
     
-    //enforce limits of heatingSetpoint
-	if (degrees > maxHeatingSetpoint) {
-		degrees = maxHeatingSetpoint
-	} else if (degrees < minHeatingSetpoint) {
-		degrees = minHeatingSetpoint
-	}
+    //enforce limits of heatingSetpoint when in thermostat mode:
+    if (state.operatingmode == "00"){
+		if (degrees > maxHeatingSetpoint) {
+			degrees = maxHeatingSetpoint
+		} else if (degrees < minHeatingSetpoint) {
+			degrees = minHeatingSetpoint
+		}
+    }
     
 	if (degrees != null) {
 		def temperatureScale = location.temperatureScale
@@ -259,18 +274,19 @@ def configure() {
   sendEvent(name: "supportedThermostatModes", value: ["heat"])
   sendEvent(name: "thermostatMode", value: "heat")
   return zigbee.configureReporting(0x0201, 0x0000, 0x29, 0, 3600, 0x000A) +
-  	 zigbee.configureReporting(0x0201, 0x0012, 0x29, 0, 3600, 0x0001) +
-    	 zigbee.configureReporting(0x0201, 0x0409, 0x29, 0, 3600, 0x000A) +
-    	 zigbee.configureReporting(0x0201, 0x0408, 0x21, 0, 3600, 0x0005) +
-         zigbee.configureReporting(0x0201, 0x0415, 0x10, 0, 3600, null) +
-	 zigbee.configureReporting(0x0201, 0x0413, 0x10, 0, 3600, null) +
-         zigbee.readAttribute(0x0201, 0x0403) +
-	 zigbee.readAttribute(0x0201, 0x0003) +
-	 zigbee.readAttribute(0x0201, 0x0004) +
-	 zigbee.readAttribute(0x0201, 0x0402)
+  zigbee.configureReporting(0x0201, 0x0012, 0x29, 0, 3600, 0x0001) +
+  zigbee.configureReporting(0x0201, 0x0409, 0x29, 0, 3600, 0x000A) +
+  zigbee.configureReporting(0x0201, 0x0408, 0x21, 0, 3600, 0x0005) +
+  zigbee.configureReporting(0x0201, 0x0415, 0x10, 0, 3600, null) +
+  zigbee.configureReporting(0x0201, 0x0413, 0x10, 0, 3600, null) +
+  zigbee.readAttribute(0x0201, 0x0403) +
+  zigbee.readAttribute(0x0201, 0x0003) +
+  zigbee.readAttribute(0x0201, 0x0004) +
+  zigbee.readAttribute(0x0201, 0x0402) +
+  zigbee.readAttribute(0x0201, 0x0405)
      
-  	//log.debug "binding to Thermostat cluster"
-	//"zdo bind 0x${device.deviceNetworkId} 1 1 0x0201 {${device.zigbeeId}} {}"
+  //log.debug "binding to Thermostat cluster"
+  //"zdo bind 0x${device.deviceNetworkId} 1 1 0x0201 {${device.zigbeeId}} {}"
 } 
 
 private hex(value) {
