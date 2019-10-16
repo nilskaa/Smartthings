@@ -12,8 +12,8 @@
  *
  *	Elko ESH Plus Super TR RF
  *
- *	Author: Nils-Martin Skaanes
- *	Date: 2017-23-08
+ *	Author: Nils-Martin Skaanes, RBoy Apps
+ *	Date: 2019-10-16
  */
 metadata {
 	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes", vid: "generic-thermostat-1") {
@@ -23,6 +23,8 @@ metadata {
 		capability "Configuration"
 		capability "powerMeter"
 		capability "Lock"
+		
+		command "resetKWH"
 
         //raw: 01 0104 0301 00 03 0000 0003 0201 00
 	fingerprint profileId: "0104", deviceId: "0301", inClusters: "0000, 0003, 0201", endpointId: "01"
@@ -52,8 +54,8 @@ metadata {
             }
         }
 		
-        valueTile("power", "device.power", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
-			state "default", label:'${currentValue} Watt', backgroundColor:"#ffffff"
+        valueTile("energy", "device.energy", inactiveLabel: false, decoration: "flat", width: 2, height: 1)) {
+			state "default", label:'${currentValue} kWh', action:"resetKWH", backgroundColor:"#ffffff"
 		}
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat") {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
@@ -78,8 +80,14 @@ metadata {
 			state "default", label: '${currentValue}', backgroundColor:"#ffffff"
 		}
 	main "ETS"
-	details(["ETS", "lock", "mode", "heating", "power", "refresh", "identity", "configure"])
+	details(["ETS", "lock", "mode", "heating", "energy", "refresh", "identity", "configure"])
 	}
+}
+
+preferences {
+    section() {
+        input "watts", "decimal", title: "Power consumption (W)", range: "1..*", required: false
+    }
 }
 
 // parse events into attributes
@@ -182,9 +190,13 @@ def parse(String description) {
             
           //408 = power consumption pr 10 minuttes?  
         } else if (it.cluster == "0201" && it.attrId == "0408") {
-			log.debug "POWER"
-			map.name = "power"
-            map.value = zigbee.convertHexToInt(it.value) 
+			log.debug "Energy"
+			def lrv = zigbee.convertHexToInt(it.value)
+			state.lastKWh = (state.lastKWh ?: 0.0) + ((watts ?: 0.0) * (lrv/3.333) * 60 * 60 / 1000)
+			map.name = "energy"
+            		map.value = (float) (Math.round(state.lastKWh * 10.0) / 10.0)
+			map.unit = "kWh"
+			result << createEvent(name: "power", value: (float) (watts ?: 0), unit: "W")
         } 
 		if (map) {
 			result << createEvent(map)
@@ -192,6 +204,12 @@ def parse(String description) {
 		log.debug "Parse returned $map"
 	}
 	return result
+}
+
+def resetKWH() {
+    log.trace "Resetting KWh"
+    state.lastKWh = 0
+    sendEvent(name: "energy", value: state.lastKWh, unit: "KWh")
 }
 
 def refresh() {
