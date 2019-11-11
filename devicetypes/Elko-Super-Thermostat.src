@@ -54,7 +54,7 @@ metadata {
             }
         }
 		
-        valueTile("energy", "device.energy", inactiveLabel: false, decoration: "flat", width: 2, height: 1)) {
+        valueTile("energy", "device.energy", inactiveLabel: false, decoration: "flat", width: 2, height: 1) {
 			state "default", label:'${currentValue} kWh', action:"resetKWH", backgroundColor:"#ffffff"
 		}
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat") {
