@@ -12,8 +12,8 @@
  *
  *	Elko ESH Plus Super TR RF
  *
- *	Author: Nils-Martin Skaanes, RBoy Apps
- *	Date: 2019-10-16
+ *	Authors: nilskaa, golfster187 and RBoy Apps
+ *	Date: 2019-11-25
  */
 metadata {
 	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes", vid: "generic-thermostat-1") {
