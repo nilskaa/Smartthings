@@ -86,7 +86,7 @@ metadata {
 
 preferences {
     section() {
-        input "watts", "decimal", title: "Power consumption (W)", range: "1..*", required: false
+        input "watts", "decimal", title: "Power consumption (W) e.g 1000", range: "1..*", required: false
     }
 }
 
@@ -192,7 +192,7 @@ def parse(String description) {
         } else if (it.cluster == "0201" && it.attrId == "0408") {
 			log.debug "Energy"
 			def lrv = zigbee.convertHexToInt(it.value)
-			state.lastKWh = (state.lastKWh ?: 0.0) + ((watts ?: 0.0) * (lrv/3.333) * 60 * 60 / 1000)
+			state.lastKWh = (state.lastKWh ?: 0.0) + ((watts ?: 0.0) * (lrv/3.333)) / (60 * 60 * 1000)
 			map.name = "energy"
             		map.value = (float) (Math.round(state.lastKWh * 10.0) / 10.0)
 			map.unit = "kWh"
