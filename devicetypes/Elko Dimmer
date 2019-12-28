@@ -14,12 +14,10 @@
 
 metadata {
     definition (name: "Elko Dimmer", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes", vid:"generic-dimmer") {
-        capability "Actuator"
         capability "Configuration"
         capability "Refresh"
         capability "Switch"
         capability "Switch Level"
-        capability "Light"
 
 	//Raw code from elko dimmer: 01 0104 0101 00 04 0000 0003 0006 0008 01 0003
 	fingerprint profileId: "0104", inClusters: "0000, 0003, 0006, 0008", outClusters: "0003"
