@@ -10,10 +10,17 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ *	Elko ESH 316 Endevender RF
+ *
+ *  Usage: After pairing and using this DH for the respective device, set up automation in smartthings to mirror the endevender with another dimmer. The SmartLighting SmartApp can be used
+ *
+ *	Author: Nils-Martin Skaanes, 
+ *  Thanks for contributing: Tor André Roland, Antonio Barril
+ *	Date: 2020-05-07
  */
 
 metadata {
-	definition (name: "Elko Dimmer-Endevender", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes") {
+	definition (name: "Elko Dimmer-Endevender", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes", vid:"generic-dimmer") {
 		capability "Actuator"
 		capability "Configuration"
 		capability "Refresh"
@@ -48,7 +55,8 @@ metadata {
 	}
     
     preferences {
-		input name: "dimammount", type: "number", title: "Dimmer ammount", description: "dimming ammount pr click (eg. 5%)", required: true, defaultValue: 5
+		input name: "dimammount", type: "number", title: "Dimmer ammount", description: "dimming ammount pr click (eg. 5%)", required: true
+        input name: "dim2five", type: "bool", title: "Dim to 5%", description: "Stop diming at 5%", required: true
 	}
 }
 
@@ -59,6 +67,8 @@ def parse(String description) {
 	def cluster_id = descMap.clusterId   
 	
 	// on/off button was pressed:
+    //Todo: find out what causes the out of sync behaviour between the master dimmer and the endevender - causing a double press to be required some times.
+    
 	if(cluster_id=="0006"){
 		if(state.onoff == null) {
 			log.debug "onoff state was NULL"
@@ -80,18 +90,29 @@ def parse(String description) {
 	if(cluster_id=="0008"){
 		def data=descMap.data[0]
 		log.debug "DIMMER=" + data
+        
+        //check if dimmamount is set in the preferences:
+        if (dimammount == null) log.debug "dimammount has not been set in the app preferences"
+        
+        //Todo: Set default dimammount (this does not work from the preferences)
+        //Oweride the dimammount value if it is null (set it to 5)
+        //Can be achieved by using a state variable, set to 5 if dimammount=null and transfering the dimammount to the state variable if it set.
+        
+        //Do some boundary checks:
 		if(state.dimlevel == null) state.dimlevel = 50
 		if(state.dimlevel > 100) state.dimlevel = 50
 		if(state.dimlevel < 0) state.dimlevel = 50
+           
+        log.debug "Going into checking the data attribute: 00=increase, 01=decrease"
 		if(data=="00") {
 			log.debug "dimmer level increase"
 			if (state.dimlevel < 100) state.dimlevel = state.dimlevel + dimammount
 		}
 		else if (data=="01") {
 			log.debug "dimmer level decrease"
-			if (state.dimlevel > 0){
-				state.dimlevel = state.dimlevel - dimammount
-			}
+            //stop at 5% if selected in preference else dim to 0 allowing for turning off the dimmer:
+            if (dim2five && state.dimlevel > 5) state.dimlevel = state.dimlevel - dimammount
+            else if (!dim2five && state.dimlevel > 0) state.dimlevel = state.dimlevel - dimammount  
 		}
 		sendEvent(name: "level", value: state.dimlevel)
 	}
@@ -103,7 +124,13 @@ def setLevel(value) {
 }
 
 def refresh() {
-    log.debug "Refresh pushed"      
+    log.debug "Refresh pushed" 
+
+	//reset the level value to 50:
+	state.dimlevel = 50
+    sendEvent(name: "level", value: state.dimlevel)
+    
+    log.debug "finnished refreshing"
 }
 
 def configure() {  
