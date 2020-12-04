@@ -19,15 +19,15 @@ metadata {
 	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes",mnmn: "SmartThingsCommunity", vid: "a04030b4-fbcb-380a-ba1e-0fcd5d52c9dc", ocfDeviceType: 'oic.d.thermostat') {
 		capability "Temperature Measurement"
 		capability "Thermostat Heating Setpoint"
-        capability "Thermostat Mode"
-        capability "Thermostat Operating State"
+        	capability "Thermostat Mode"
+        	capability "Thermostat Operating State"
 		capability "Refresh"
 		capability "Configuration"
 		capability "energyMeter"
 		capability "Lock"
-        capability "islandtravel33177.elkoResetKwh"
-        capability "islandtravel33177.elkoTemperature"
-        capability "islandtravel33177.elkoMode"
+        	capability "islandtravel33177.elkoResetKwh"
+        	capability "islandtravel33177.elkoTemperature"
+       		capability "islandtravel33177.elkoMode"
 		
 		//command "resetKWH" now in custom capability
 
