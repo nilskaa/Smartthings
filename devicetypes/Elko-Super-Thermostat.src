@@ -16,15 +16,20 @@
  *	Date: 2019-11-25
  */
 metadata {
-	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes", vid: "generic-thermostat-1") {
+	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes",mnmn: "SmartThingsCommunity", vid: "a04030b4-fbcb-380a-ba1e-0fcd5d52c9dc", ocfDeviceType: 'oic.d.thermostat') {
 		capability "Temperature Measurement"
-		capability "Thermostat"
+		capability "Thermostat Heating Setpoint"
+        	capability "Thermostat Mode"
+        	capability "Thermostat Operating State"
 		capability "Refresh"
 		capability "Configuration"
 		capability "energyMeter"
 		capability "Lock"
+        	capability "islandtravel33177.elkoResetKwh"
+        	capability "islandtravel33177.elkoTemperature"
+       		capability "islandtravel33177.elkoMode"
 		
-		command "resetKWH"
+		//command "resetKWH" now in custom capability
 
         //raw: 01 0104 0301 00 03 0000 0003 0201 00
 	fingerprint profileId: "0104", deviceId: "0301", inClusters: "0000, 0003, 0201", endpointId: "01"
@@ -82,11 +87,10 @@ metadata {
 	main "ETS"
 	details(["ETS", "lock", "mode", "heating", "energy", "refresh", "identity", "configure"])
 	}
-}
 
 preferences {
-    section() {
-        input "watts", "decimal", title: "Power consumption (W) e.g 1000", range: "1..*", required: false
+        input "watts", "number", title: "Power consumption (W) e.g 1000", range: "*..*"
+
     }
 }
 
@@ -103,7 +107,7 @@ def parse(String description) {
 	attrData.each {
 		def map = [:]
       
-      //415 = Thermostat/Regulator
+      //405 = Thermostat/Regulator
        if (it.cluster == "0201" && it.attrId == "0405") {
         	log.debug "OPERATING MODE=$it.value"
             state.operatingmode = it.value
@@ -111,7 +115,14 @@ def parse(String description) {
             if (it.value == "01") map.value = "REGULATOR"
             else map.value = "THERMOSTAT"
         }
-      
+       //406 = Thermostat Mode
+       if (it.cluster == "0201" && it.attrId == "0406") {
+        	log.debug "THERMOSTAT MODE=$it.value"
+            state.operatingmode = it.value
+            map.name = "thermostatMode"
+            if (it.value == "00") {map.value = "off"}
+            else if (it.value == "01") {map.value = "heat"}
+        }
       	//415 = Boolean - heating/not heating
       	if (it.cluster == "0201" && it.attrId == "0415") {
 		log.debug "HEATING=$it.value"
@@ -163,30 +174,36 @@ def parse(String description) {
 			log.debug "MEASURED AIR TEMPERATURE - air sensor mode"
 			map.name = "temperature"
             map.value = getTemperature(it.value)
+            map.unit = temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "01") {
 			log.debug "MEASURED AIR TEMPERATURE - floor sensor mode"
 			map.name = "temperatureMeasurement"
-			map.value = getTemperature(it.value) + "° Luft temperatur"
+			map.value = getTemperature(it.value)// + "° Luft temperatur"
+            map.unit = temperatureScale
 		} else if (it.cluster == "0201" && it.attrId == "0000" && state.tempsensor == "03") {
 			log.debug "MEASURED AIR TEMPERATURE - floor monitor mode"
 			map.name = "temperature"
 			map.value = getTemperature(it.value)
+            map.unit = temperatureScale
             
           //0012 = heating setpoint value  
         } else if (it.cluster == "0201" && it.attrId == "0012") {
 			log.debug "HEATING SETPOINT"
 			map.name = "heatingSetpoint"
 			map.value = getTemperature(it.value)
+            map.unit = temperatureScale
             
           //409 = Measured floor temperature (probe)  
 		} else if (it.cluster == "0201" && it.attrId == "0409" && state.tempsensor == "01") {
 			log.debug "MEASURED FLOOR TEMPERATURE - floor sensor mode"
 			map.name = "temperature"
 			map.value = getTemperature(it.value)
+            map.unit = temperatureScale
         } else if (it.cluster == "0201" && it.attrId == "0409" && state.tempsensor == "03") {
 			log.debug "MEASURED FLOOR TEMPERATURE - floor monitor mode"
 			map.name = "temperatureMeasurement"
 			map.value = getTemperature(it.value) + "° Gulv temperatur"
+            map.unit = temperatureScale
             
           //408 = power consumption pr 10 minuttes?  
         } else if (it.cluster == "0201" && it.attrId == "0408") {
@@ -231,6 +248,8 @@ def refresh() {
      cmd << "delay 400"	
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0403"  // Thermostat modes
      cmd << "delay 400"	
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0406"  // Thermostat modes
+     cmd << "delay 400"	     
      return cmd
 } 
 
@@ -286,10 +305,33 @@ def unlock() {
 	log.debug "Unlock Child lock"
 	zigbee.writeAttribute(0x0201, 0x0413, 0x10, 00)
 }
+def setThermostatMode(mode) {
+	log.debug "set mode $mode"
+		switch (mode) {
+			case "heat":
+				heat()
+				break
+			case "off":
+				off()
+				break
+		}
+}
+def off() {
+	log.debug "Off"
+	zigbee.writeAttribute(0x0201, 0x0406, 0x10, 00)+
+    zigbee.readAttribute(0x0201, 0x0406)
+}
+
+def heat() {
+	log.debug "Heat"
+	zigbee.writeAttribute(0x0201, 0x0406, 0x10, 01)+
+    zigbee.readAttribute(0x0201, 0x0406)
+}
+
 
 def configure() {
   log.debug "Set up reporting and get configuration attributes"
-  sendEvent(name: "supportedThermostatModes", value: ["heat"])
+  sendEvent(name: "supportedThermostatModes", value: ["heat", "off"])
   sendEvent(name: "thermostatMode", value: "heat")
   return zigbee.configureReporting(0x0201, 0x0000, 0x29, 0, 3600, 0x000A) +
   zigbee.configureReporting(0x0201, 0x0012, 0x29, 0, 3600, 0x0001) +
