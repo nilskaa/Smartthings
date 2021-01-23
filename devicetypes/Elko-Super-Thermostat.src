@@ -16,7 +16,7 @@
  *	Date: 2019-11-25
  */
 metadata {
-	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes",mnmn: "SmartThingsCommunity", vid: "a04030b4-fbcb-380a-ba1e-0fcd5d52c9dc", ocfDeviceType: 'oic.d.thermostat') {
+	definition (name: "Elko Super Thermostat", namespace: "nilskaa@gmail.com", author: "Nils-Martin Skaanes",mnmn: "SmartThingsCommunity", vid: "882a0b0d-cd4e-33b2-a26c-04cda220c08b", ocfDeviceType: 'oic.d.thermostat') {
 		capability "Temperature Measurement"
 		capability "Thermostat Heating Setpoint"
         	capability "Thermostat Mode"
