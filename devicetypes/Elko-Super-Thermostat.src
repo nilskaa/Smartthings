@@ -28,6 +28,9 @@ metadata {
         	capability "islandtravel33177.elkoResetKwh"
         	capability "islandtravel33177.elkoTemperature"
        		capability "islandtravel33177.elkoMode"
+		capability "Sensor" //Deprecated, but still in use by SmartApps like Webcore
+       		capability "Actuator"//Deprecated, but still in use by SmartApps like Webcore
+     		//capability "Thermostat" //This capability may be needed for old integreations like Tibber. Uncomment if needed.
 		
 		//command "resetKWH" now in custom capability
 
