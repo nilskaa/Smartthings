@@ -114,7 +114,7 @@ def parse(String description) {
        if (it.cluster == "0201" && it.attrId == "0405") {
         	log.debug "OPERATING MODE=$it.value"
             state.operatingmode = it.value
-            map.name = "mode"
+            map.name = "operatingmode"
             if (it.value == "01") map.value = "Regulator"
             else map.value = "Termostat"
         }
@@ -155,7 +155,7 @@ def parse(String description) {
         if (it.cluster == "0201" && it.attrId == "0403") {
 		log.debug "CONFIG - Temperature sensor value=$it.value"
 		state.tempsensor = it.value
-            	map.name = "temperatureSensor"
+            	map.name = "mode"
             	//check operating mode
             	if(state.operatingmode == "00"){
             		if (it.value == "00") { map.value = "Luftføler modus"} 
