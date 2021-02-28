@@ -110,22 +110,24 @@ def parse(String description) {
 	attrData.each {
 		def map = [:]
       
-      //405 = Thermostat/Regulator
+      //405 = Operating mode (Thermostat/Regulator
        if (it.cluster == "0201" && it.attrId == "0405") {
         	log.debug "OPERATING MODE=$it.value"
             state.operatingmode = it.value
-            map.name = "mode"
-            if (it.value == "01") map.value = "REGULATOR"
-            else map.value = "THERMOSTAT"
+            map.name = "operatingmode"
+            if (it.value == "01") map.value = "Regulator"
+            else map.value = "Termostat"
         }
+
        //406 = Thermostat Mode
        if (it.cluster == "0201" && it.attrId == "0406") {
         	log.debug "THERMOSTAT MODE=$it.value"
-            state.operatingmode = it.value
+            state.thermostatmode = it.value
             map.name = "thermostatMode"
             if (it.value == "00") {map.value = "off"}
             else if (it.value == "01") {map.value = "heat"}
         }
+
       	//415 = Boolean - heating/not heating
       	if (it.cluster == "0201" && it.attrId == "0415") {
 		log.debug "HEATING=$it.value"
@@ -142,14 +144,14 @@ def parse(String description) {
 		else if (it.value == "01") {map.value = "locked"}
         }
 	
-	//402 = zone text
+		//402 = zone text
       	if (it.cluster == "0201" && it.attrId == "0402") {
 		log.debug "ZONETEXT=$it.value"
 		map.name = "identity"
         	map.value = hexToAscii(it.value)
         }
       
-        //403 = termostat modus. 00=luftføler, 01=gulvføler, 03=gulv vakt
+        //403 = Temperature sensor. 00=luftføler, 01=gulvføler, 03=gulv vakt
         if (it.cluster == "0201" && it.attrId == "0403") {
 		log.debug "CONFIG - Temperature sensor value=$it.value"
 		state.tempsensor = it.value
@@ -241,15 +243,15 @@ def refresh() {
      cmd << "delay 400"
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0409"  // Floor sensor temp (external)
      cmd << "delay 400"
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0408"  // power consumption? 
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0408"  // Power consumption 
      cmd << "delay 400"
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0413"  // childlock   
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0413"  // Childlock   
      cmd << "delay 400"
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0402"  // zonetext
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0402"  // Zonetext
      cmd << "delay 400"
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0405"  // Thermostat / Regulator mode
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0405"  // Operating mode (Thermostat/Regulator)
      cmd << "delay 400"	
-     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0403"  // Thermostat modes
+     cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0403"  // Temperature sensor
      cmd << "delay 400"	
      cmd << "st rattr 0x${device.deviceNetworkId} 0x01 0x0201 0x0406"  // Thermostat modes
      cmd << "delay 400"	     
@@ -342,6 +344,9 @@ def configure() {
   zigbee.configureReporting(0x0201, 0x0408, 0x21, 0, 3600, 0x0005) +
   zigbee.configureReporting(0x0201, 0x0415, 0x10, 0, 3600, null) +
   zigbee.configureReporting(0x0201, 0x0413, 0x10, 0, 3600, null) +
+  zigbee.configureReporting(0x0201, 0x0403, 0x30, 0, 3600, null) +
+  zigbee.configureReporting(0x0201, 0x0405, 0x10, 0, 3600, null) +
+  zigbee.configureReporting(0x0201, 0x0406, 0x10, 0, 3600, null) +
   zigbee.readAttribute(0x0201, 0x0403) +
   zigbee.readAttribute(0x0201, 0x0003) +
   zigbee.readAttribute(0x0201, 0x0004) +
